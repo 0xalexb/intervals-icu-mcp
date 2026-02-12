@@ -1,0 +1,18 @@
+module github.com/0xalexb/intervals-icu-mcp
+
+go 1.25
+
+require (
+	github.com/0xalexb/hjarta-di v0.2.1
+	github.com/modelcontextprotocol/go-sdk v0.8.0
+	go.uber.org/fx v1.24.0
+)
+
+require (
+	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/zap v1.26.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+)

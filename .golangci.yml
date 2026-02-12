@@ -1,0 +1,67 @@
+version: "2"
+
+linters:
+  default: all
+  disable:
+    - testpackage
+    - wsl
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - err113
+          - funlen
+          - exhaustruct
+          - gosec
+          - cyclop
+          - dupl
+          - varnamelen
+          - goconst
+          - wsl_v5
+          - lll
+          - perfsprint
+          - errorlint
+          - errcheck
+          - tagalign
+      - path: src/app/tools/
+        linters:
+          - dupl
+          - tagliatelle
+      - path: src/app/
+        linters:
+          - exhaustruct
+  settings:
+    depguard:
+      rules:
+        main:
+          list-mode: strict
+          files:
+            - $all
+            - "!$test"
+          allow:
+            # standard library
+            - $gostd
+            # personal repos
+            - github.com/0xalexb
+            # DI
+            - go.uber.org/fx
+            # MCP SDK
+            - github.com/modelcontextprotocol
+        tests:
+          list-mode: strict
+          files:
+            - $test
+          allow:
+            # standard library
+            - $gostd
+            # personal repos
+            - github.com/0xalexb
+            # DI
+            - go.uber.org/fx
+            - go.uber.org/fx/fxtest
+            # MCP SDK
+            - github.com/modelcontextprotocol
+            # test libraries
+            - github.com/stretchr/testify
+            # YAML parsing
+            - github.com/goccy/go-yaml

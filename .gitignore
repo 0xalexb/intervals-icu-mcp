@@ -31,5 +31,5 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# progress logs
+# ralphex progress logs
 progress*.txt

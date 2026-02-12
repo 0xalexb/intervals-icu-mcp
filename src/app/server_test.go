@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,11 +14,10 @@ import (
 	"github.com/0xalexb/intervals-icu-mcp/src/app/tools"
 )
 
-func TestNewServer(t *testing.T) {
+func TestNewServer_Stdio(t *testing.T) {
 	t.Parallel()
 
-	transport := &mcp.StdioTransport{}
-	server := NewServer(transport, []tools.ToolRegistration{tools.NewVersionTool()})
+	server := NewServer(TransportStdio, []tools.ToolRegistration{tools.NewVersionTool()})
 
 	if server == nil {
 		t.Fatal("expected non-nil server")
@@ -25,16 +27,35 @@ func TestNewServer(t *testing.T) {
 		t.Fatal("expected non-nil mcp server")
 	}
 
-	if server.transport == nil {
-		t.Fatal("expected non-nil transport")
+	if server.stdioTransport == nil {
+		t.Fatal("expected non-nil transport for stdio mode")
 	}
 }
 
-func TestServer_StartStop(t *testing.T) {
+func TestNewServer_Streamable(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(TransportStreamable, []tools.ToolRegistration{tools.NewVersionTool()})
+
+	if server == nil {
+		t.Fatal("expected non-nil server")
+	}
+
+	if server.mcpServer == nil {
+		t.Fatal("expected non-nil mcp server")
+	}
+
+	if server.stdioTransport != nil {
+		t.Fatal("expected nil transport for streamable mode")
+	}
+}
+
+func TestServer_StartStop_Stdio(t *testing.T) {
 	t.Parallel()
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
-	server := NewServer(serverTransport, []tools.ToolRegistration{tools.NewVersionTool()})
+	server := NewServer(TransportStdio, []tools.ToolRegistration{tools.NewVersionTool()})
+	server.stdioTransport = serverTransport
 
 	ctx := context.Background()
 
@@ -72,10 +93,64 @@ func TestServer_StartStop(t *testing.T) {
 	}
 }
 
+func TestServer_StartStop_Streamable(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(TransportStreamable, []tools.ToolRegistration{tools.NewVersionTool()})
+
+	ctx := context.Background()
+
+	err := server.Start(ctx)
+	if err != nil {
+		t.Fatalf("expected no error on start, got: %v", err)
+	}
+
+	err = server.Stop(ctx)
+	if err != nil {
+		t.Fatalf("expected no error on stop, got: %v", err)
+	}
+}
+
+func TestServer_Handler(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(TransportStreamable, []tools.ToolRegistration{tools.NewVersionTool()})
+
+	handler := server.Handler()
+	if handler == nil {
+		t.Fatal("expected non-nil handler")
+	}
+}
+
+func TestServer_Streamable_Responds(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(TransportStreamable, []tools.ToolRegistration{tools.NewVersionTool()})
+
+	handler := server.Handler()
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/mcp", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("expected no error creating request, got: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestServer_StopWithoutStart(t *testing.T) {
 	t.Parallel()
 
-	server := NewServer(&mcp.StdioTransport{}, []tools.ToolRegistration{tools.NewVersionTool()})
+	server := NewServer(TransportStdio, []tools.ToolRegistration{tools.NewVersionTool()})
 
 	err := server.Stop(context.Background())
 	if err != nil {
@@ -83,11 +158,12 @@ func TestServer_StopWithoutStart(t *testing.T) {
 	}
 }
 
-func TestServer_DoubleStart(t *testing.T) {
+func TestServer_DoubleStart_Stdio(t *testing.T) {
 	t.Parallel()
 
 	serverTransport, _ := mcp.NewInMemoryTransports()
-	server := NewServer(serverTransport, []tools.ToolRegistration{tools.NewVersionTool()})
+	server := NewServer(TransportStdio, []tools.ToolRegistration{tools.NewVersionTool()})
+	server.stdioTransport = serverTransport
 
 	ctx := context.Background()
 
@@ -105,5 +181,24 @@ func TestServer_DoubleStart(t *testing.T) {
 
 	if !errors.Is(err, errAlreadyStarted) {
 		t.Fatalf("expected errAlreadyStarted, got: %v", err)
+	}
+}
+
+func TestServer_DoubleStart_Streamable(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(TransportStreamable, []tools.ToolRegistration{tools.NewVersionTool()})
+
+	ctx := context.Background()
+
+	err := server.Start(ctx)
+	if err != nil {
+		t.Fatalf("expected no error on first start, got: %v", err)
+	}
+
+	// Streamable Start is a no-op, so calling it again should also succeed.
+	err = server.Start(ctx)
+	if err != nil {
+		t.Fatalf("expected no error on second start (streamable is no-op), got: %v", err)
 	}
 }

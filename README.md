@@ -1,6 +1,6 @@
 # intervals-icu-mcp
 
-A Model Context Protocol (MCP) server for [Intervals.icu](https://intervals.icu), built in Go. Communicates over stdin/stdout using the MCP stdio transport.
+A Model Context Protocol (MCP) server for [Intervals.icu](https://intervals.icu), built in Go. Supports stdio (default) and streamable HTTP transport modes.
 
 ## Requirements
 
@@ -18,11 +18,24 @@ Set the following environment variables before running the server:
 
 ## Usage
 
-Run the MCP server:
+Run the MCP server (stdio transport, default):
 
 ```sh
 go run ./src/...
 ```
+
+Run with streamable HTTP transport:
+
+```sh
+go run ./src/... --transport streamable --address 127.0.0.1:8080
+```
+
+The MCP endpoint is served at `/mcp` (not configurable).
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--transport` | `stdio` | Transport type: `stdio` or `streamable` |
+| `--address` | `127.0.0.1:8080` | Listen address for streamable HTTP transport (e.g., `127.0.0.1:8080` or `:9000`) |
 
 Print version:
 

@@ -1,7 +1,9 @@
-github.com/0xalexb/hjarta-di v0.2.1 h1:pvlQ8+NQloUaaCrAe0vR6ryQr5YpNYGD+3hfUQol1Tw=
-github.com/0xalexb/hjarta-di v0.2.1/go.mod h1:UoWIRyKuvWbIWnLk29ySd4vMqlQsaIRAYvaOAGksEY8=
+github.com/0xalexb/hjarta-di v0.3.0 h1:7jpmG4qRN5vYQBiF4LcABeCeIPA4zDIc40rkMu0Os1M=
+github.com/0xalexb/hjarta-di v0.3.0/go.mod h1:UoWIRyKuvWbIWnLk29ySd4vMqlQsaIRAYvaOAGksEY8=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/go-pkgz/routegroup v1.6.0 h1:44XHZgF6JIIldRlv+zjg6SygULASmjifnfIQjwCT0e4=
+github.com/go-pkgz/routegroup v1.6.0/go.mod h1:Pmu04fhgWhRtBMIJ8HXppnnzOPjnL/IEPBIdO2zmeqg=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=
 github.com/goccy/go-yaml v1.19.2/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
 github.com/golang-jwt/jwt/v5 v5.2.2 h1:Rl4B7itRWVtYIHFrSNd7vhTiz9UpLdi6gZhZ3wEeDy8=

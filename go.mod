@@ -3,7 +3,8 @@ module github.com/0xalexb/intervals-icu-mcp
 go 1.25
 
 require (
-	github.com/0xalexb/hjarta-di v0.2.1
+	github.com/0xalexb/hjarta-di v0.3.0
+	github.com/go-pkgz/routegroup v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	go.uber.org/fx v1.24.0
 )

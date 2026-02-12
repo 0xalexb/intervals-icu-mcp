@@ -27,6 +27,8 @@ linters:
         linters:
           - dupl
           - tagliatelle
+      - path: src/app/api/
+        text: "avoid meaningless package names"
       - path: src/app/
         linters:
           - exhaustruct
@@ -47,6 +49,8 @@ linters:
             - go.uber.org/fx
             # MCP SDK
             - github.com/modelcontextprotocol
+            # HTTP routing
+            - github.com/go-pkgz/routegroup
         tests:
           list-mode: strict
           files:
@@ -65,3 +69,5 @@ linters:
             - github.com/stretchr/testify
             # YAML parsing
             - github.com/goccy/go-yaml
+            # HTTP routing
+            - github.com/go-pkgz/routegroup

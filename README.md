@@ -30,12 +30,22 @@ Run with streamable HTTP transport:
 go run ./src/... --transport streamable --address 127.0.0.1:8080
 ```
 
-The MCP endpoint is served at `/mcp` (not configurable).
+The MCP endpoint is served at `/mcp` (not configurable). When using the streamable transport, the endpoint is served behind a middleware stack that provides:
+
+- Panic recovery (returns 500 on unhandled panics)
+- Request ID propagation (X-Request-ID header)
+- Structured request logging
+- Rate limiting (100 requests/second, burst 200)
+- Max request body size (1 MB)
+- CORS (configurable origins via `--allowed-origins` as full URLs, GET/POST/DELETE/OPTIONS methods)
+- Expose-Headers (`Access-Control-Expose-Headers: Mcp-Session-Id` for CORS responses)
+- Gzip compression
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--transport` | `stdio` | Transport type: `stdio` or `streamable` |
 | `--address` | `127.0.0.1:8080` | Listen address for streamable HTTP transport (e.g., `127.0.0.1:8080` or `:9000`) |
+| `--allowed-origins` | _(empty)_ | Comma-separated list of allowed CORS origins as full URLs (e.g., `http://localhost:3000,https://example.com`) |
 
 Print version:
 
@@ -47,7 +57,7 @@ go run ./src/... -v
 Build with version injection:
 
 ```sh
-go build -ldflags "-X github.com/0xalexb/hjarta-di.Version=1.0.0 -X github.com/0xalexb/hjarta-di.DIVersion=0.2.1 -X github.com/0xalexb/hjarta-di.CompiledAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o intervals-icu-mcp ./src/
+go build -ldflags "-X github.com/0xalexb/hjarta-di.Version=1.0.0 -X github.com/0xalexb/hjarta-di.DIVersion=0.4.1 -X github.com/0xalexb/hjarta-di.CompiledAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o intervals-icu-mcp ./src/
 ```
 
 ## MCP Tools

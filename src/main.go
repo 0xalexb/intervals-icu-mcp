@@ -11,18 +11,21 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/0xalexb/intervals-icu-mcp/src/app"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/api"
 )
 
 const (
-	defaultAddress = "127.0.0.1:8080"
-	listenerName   = "mcp"
+	defaultAddress        = "127.0.0.1:8080"
+	defaultAllowedOrigins = ""
+	listenerName          = "mcp"
 )
 
 func main() {
 	var (
-		showVersion bool
-		address     string
-		transport   string
+		showVersion    bool
+		address        string
+		transport      string
+		allowedOrigins string
 	)
 
 	flag.BoolVar(&showVersion, "version", false, "Print the application version and exit.")
@@ -30,6 +33,8 @@ func main() {
 	flag.StringVar(&transport, "transport", string(app.TransportStdio), "Transport type: stdio or streamable.")
 	flag.StringVar(&address, "address", defaultAddress,
 		"Listen address for streamable HTTP transport (e.g., :8080 or 127.0.0.1:9000).")
+	flag.StringVar(&allowedOrigins, "allowed-origins", defaultAllowedOrigins,
+		"Comma-separated list of allowed CORS origins as full URLs (e.g., http://localhost:3000,https://example.com).")
 	flag.Parse()
 
 	if showVersion {
@@ -52,6 +57,7 @@ func main() {
 		di.WithModules(
 			app.Module,
 			fx.Supply(transportValue),
+			fx.Supply(api.RawAllowedOrigins(allowedOrigins)),
 		),
 	}
 

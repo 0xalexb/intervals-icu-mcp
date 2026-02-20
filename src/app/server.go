@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	di "github.com/0xalexb/hjarta-di"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -13,7 +14,12 @@ import (
 	"github.com/0xalexb/intervals-icu-mcp/src/app/tools"
 )
 
-var errAlreadyStarted = errors.New("server already started")
+const sessionIdleTimeout = 30 * time.Minute
+
+var (
+	errAlreadyStarted      = errors.New("server already started")
+	errUnsupportedTransport = errors.New("unsupported transport")
+)
 
 // Server wraps the MCP server with lifecycle management.
 // For stdio transport, Start/Stop manage the server goroutine.
@@ -59,7 +65,9 @@ func (s *Server) Handler() http.Handler {
 		func(_ *http.Request) *mcp.Server {
 			return s.mcpServer
 		},
-		nil,
+		&mcp.StreamableHTTPOptions{
+			SessionTimeout: sessionIdleTimeout,
+		},
 	)
 }
 
@@ -70,6 +78,10 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) Start(_ context.Context) error {
 	if s.transport == TransportStreamable {
 		return nil
+	}
+
+	if s.transport != TransportStdio {
+		return fmt.Errorf("%w: %q", errUnsupportedTransport, s.transport)
 	}
 
 	if s.done != nil {

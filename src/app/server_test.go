@@ -184,6 +184,21 @@ func TestServer_DoubleStart_Stdio(t *testing.T) {
 	}
 }
 
+func TestServer_Start_UnsupportedTransport(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(Transport("invalid"), []tools.ToolRegistration{tools.NewVersionTool()})
+
+	err := server.Start(context.Background())
+	if err == nil {
+		t.Fatal("expected error for unsupported transport, got nil")
+	}
+
+	if !errors.Is(err, errUnsupportedTransport) {
+		t.Fatalf("expected errUnsupportedTransport, got: %v", err)
+	}
+}
+
 func TestServer_DoubleStart_Streamable(t *testing.T) {
 	t.Parallel()
 

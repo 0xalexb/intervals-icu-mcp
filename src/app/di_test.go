@@ -7,6 +7,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
+	"github.com/0xalexb/intervals-icu-mcp/src/app/api"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
 )
 
@@ -20,6 +21,7 @@ func TestModule_ProvidesServer(t *testing.T) {
 
 	app := fxtest.New(t,
 		fx.Supply(TransportStreamable),
+		fx.Supply(api.RawAllowedOrigins("http://localhost:3000,http://127.0.0.1:8080,http://[::1]:9090")),
 		fx.Decorate(func() *client.Client { return testClient }),
 		Module,
 		fx.Populate(&server),

@@ -72,16 +72,16 @@ Note: with v0.4.1's hostname-based matching, `http://localhost:3000` and `https:
 **Files:**
 - Modify: `CLAUDE.md`
 
-- [ ] Update CLAUDE.md: update middleware stack description - remove ExposeHeaders as separate middleware, note that CORS now uses functional options with WithExposedHeaders
-- [ ] Update CLAUDE.md: update the note about hjarta-di's CORS not supporting expose headers (it now does via WithExposedHeaders)
-- [ ] Update CLAUDE.md: note that AllowedOrigins stores full URLs and provides Hostnames() for CORS middleware
-- [ ] Update CLAUDE.md: note that CORS matching is hostname-based (not exact URL matching)
+- [x] Update CLAUDE.md: update middleware stack description - remove ExposeHeaders as separate middleware, note that CORS now uses functional options with WithExposedHeaders
+- [x] Update CLAUDE.md: update the note about hjarta-di's CORS not supporting expose headers (it now does via WithExposedHeaders)
+- [x] Update CLAUDE.md: note that AllowedOrigins stores full URLs and provides Hostnames() for CORS middleware
+- [x] Update CLAUDE.md: note that CORS matching is hostname-based (not exact URL matching)
 
 ### Task 5: Verify acceptance criteria
 
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
-- [ ] Verify `go build ./src/...` succeeds
-- [ ] Manual test: confirm `--allowed-origins http://localhost:3000,https://example.com` is accepted (same as today)
-- [ ] Manual test: confirm `--allowed-origins localhost` is rejected (missing scheme, same as today)
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
+- [x] Verify `go build ./src/...` succeeds
+- [x] Manual test: confirm `--allowed-origins http://localhost:3000,https://example.com` is accepted (same as today)
+- [x] Manual test: confirm `--allowed-origins localhost` is rejected (missing scheme, same as today)
+- [x] Move this plan to `docs/plans/completed/`

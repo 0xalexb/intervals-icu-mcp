@@ -71,11 +71,11 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Create: `src/app/auth/github.go`
 - Create: `src/app/auth/github_test.go`
 
-- [ ] Implement `ExchangeGitHubCode(ctx context.Context, clientID GitHubClientID, clientSecret GitHubClientSecret, code string) (string, error)` - POST to `https://github.com/login/oauth/access_token`
-- [ ] Implement `GetGitHubUser(ctx context.Context, accessToken string) (*GitHubUser, error)` - GET `https://api.github.com/user`, extract login field
-- [ ] Define `GitHubUser` struct with `Login string`
-- [ ] Write tests using `httptest.Server` to mock both GitHub endpoints (success and error cases)
-- [ ] Run project test suite - must pass before task 5
+- [x] Implement `ExchangeGitHubCode(ctx context.Context, clientID GitHubClientID, clientSecret GitHubClientSecret, code string) (string, error)` - POST to `https://github.com/login/oauth/access_token`
+- [x] Implement `GetGitHubUser(ctx context.Context, accessToken string) (*GitHubUser, error)` - GET `https://api.github.com/user`, extract login field
+- [x] Define `GitHubUser` struct with `Login string`
+- [x] Write tests using `httptest.Server` to mock both GitHub endpoints (success and error cases)
+- [x] Run project test suite - must pass before task 5
 
 ### Task 5: OAuth metadata types
 

@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"github.com/modelcontextprotocol/go-sdk/auth"
-	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"context"
+
 	"go.uber.org/fx"
 )
 
@@ -17,10 +17,20 @@ var Module = fx.Module("auth", //nolint:gochecknoglobals // fx.Module as package
 	fx.Provide(NewAuthorizationServerMetadata),
 	fx.Provide(NewProtectedResourceMetadata),
 	fx.Provide(NewTokenVerifier),
+	fx.Invoke(registerStoreCleanup),
 )
 
-// ProtectedResourceMetadata re-exports the type for use in other packages.
-type ProtectedResourceMetadata = oauthex.ProtectedResourceMetadata
+func registerStoreCleanup(lc fx.Lifecycle, store *Store) {
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			store.StartCleanup()
 
-// TokenVerifier re-exports the type for use in other packages.
-type TokenVerifier = auth.TokenVerifier
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			store.StopCleanup()
+
+			return nil
+		},
+	})
+}

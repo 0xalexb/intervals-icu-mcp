@@ -141,5 +141,5 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 
 ### Task 9: Update documentation
 
-- [ ] Update CLAUDE.md with auth package architecture, new CLI flags, and mandatory auth for streamable transport
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update CLAUDE.md with auth package architecture, new CLI flags, and mandatory auth for streamable transport
+- [x] Move this plan to `docs/plans/completed/`

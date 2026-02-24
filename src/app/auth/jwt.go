@@ -94,10 +94,13 @@ func NewTokenVerifier(secret JWTSecret, issuer Issuer) auth.TokenVerifier {
 			return nil, fmt.Errorf("%w: unexpected claims type", auth.ErrInvalidToken)
 		}
 
-		info := &auth.TokenInfo{}
+		sub, hasSub := claims["sub"].(string)
+		if !hasSub || sub == "" {
+			return nil, fmt.Errorf("%w: missing sub claim", auth.ErrInvalidToken)
+		}
 
-		if sub, hasSub := claims["sub"].(string); hasSub {
-			info.UserID = sub
+		info := &auth.TokenInfo{
+			UserID: sub,
 		}
 
 		if exp, hasExp := claims["exp"].(float64); hasExp {

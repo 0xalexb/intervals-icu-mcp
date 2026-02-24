@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -282,7 +283,9 @@ func TestSaveClient_And_GetClient(t *testing.T) {
 		CreatedAt:    time.Now(),
 	}
 
-	store.SaveClient(client)
+	if err := store.SaveClient(client); err != nil {
+		t.Fatalf("unexpected error saving client: %v", err)
+	}
 
 	got, err := store.GetClient("client-abc")
 	if err != nil {
@@ -332,7 +335,9 @@ func TestSaveClient_Overwrite(t *testing.T) {
 		CreatedAt:  time.Now(),
 	}
 
-	store.SaveClient(client1)
+	if err := store.SaveClient(client1); err != nil {
+		t.Fatalf("unexpected error saving client1: %v", err)
+	}
 
 	client2 := &RegisteredClient{
 		ClientID:   "client-overwrite",
@@ -340,7 +345,9 @@ func TestSaveClient_Overwrite(t *testing.T) {
 		CreatedAt:  time.Now(),
 	}
 
-	store.SaveClient(client2)
+	if err := store.SaveClient(client2); err != nil {
+		t.Fatalf("unexpected error saving client2: %v", err)
+	}
 
 	got, err := store.GetClient("client-overwrite")
 	if err != nil {
@@ -371,4 +378,170 @@ func TestNewStore_EmptyMaps(t *testing.T) {
 	if err != errClientNotFound {
 		t.Fatalf("expected errClientNotFound on empty store, got %v", err)
 	}
+}
+
+func TestSaveClient_MaxClientsLimit(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+
+	for i := range maxClients {
+		err := store.SaveClient(&RegisteredClient{
+			ClientID:  fmt.Sprintf("client-%d", i),
+			CreatedAt: time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error saving client %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveClient(&RegisteredClient{
+		ClientID:  "one-too-many",
+		CreatedAt: time.Now(),
+	})
+	if err != errMaxClientsReached {
+		t.Fatalf("expected errMaxClientsReached, got %v", err)
+	}
+}
+
+func TestEvictExpired(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	store.SaveAuthCode(&Code{
+		Code:      "expired-code",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(-5 * time.Minute),
+	})
+
+	store.SaveAuthCode(&Code{
+		Code:      "valid-code",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(5 * time.Minute),
+	})
+
+	store.SaveRefreshToken(&RefreshToken{
+		Token:     "expired-rt",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(-1 * time.Hour),
+	})
+
+	store.SaveRefreshToken(&RefreshToken{
+		Token:     "valid-rt",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(1 * time.Hour),
+	})
+
+	store.evictExpired(now)
+
+	_, err := store.ConsumeAuthCode("expired-code", now)
+	if err != errAuthCodeNotFound {
+		t.Fatalf("expected expired code to be evicted, got %v", err)
+	}
+
+	got, err := store.ConsumeAuthCode("valid-code", now)
+	if err != nil {
+		t.Fatalf("expected valid code to survive eviction: %v", err)
+	}
+
+	if got.Code != "valid-code" {
+		t.Fatalf("expected 'valid-code', got %q", got.Code)
+	}
+
+	_, err = store.ConsumeRefreshToken("expired-rt", now)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected expired refresh token to be evicted, got %v", err)
+	}
+
+	gotRT, err := store.ConsumeRefreshToken("valid-rt", now)
+	if err != nil {
+		t.Fatalf("expected valid refresh token to survive eviction: %v", err)
+	}
+
+	if gotRT.Token != "valid-rt" {
+		t.Fatalf("expected 'valid-rt', got %q", gotRT.Token)
+	}
+}
+
+func TestEvictExpired_EvictsExpiredClients(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	if err := store.SaveClient(&RegisteredClient{
+		ClientID:  "old-client",
+		CreatedAt: now.Add(-(clientTTL + time.Hour)),
+	}); err != nil {
+		t.Fatalf("saving old client: %v", err)
+	}
+
+	if err := store.SaveClient(&RegisteredClient{
+		ClientID:  "fresh-client",
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("saving fresh client: %v", err)
+	}
+
+	store.evictExpired(now)
+
+	_, err := store.GetClient("old-client")
+	if err != errClientNotFound {
+		t.Fatalf("expected expired client to be evicted, got %v", err)
+	}
+
+	got, err := store.GetClient("fresh-client")
+	if err != nil {
+		t.Fatalf("expected fresh client to survive eviction: %v", err)
+	}
+
+	if got.ClientID != "fresh-client" {
+		t.Fatalf("expected 'fresh-client', got %q", got.ClientID)
+	}
+}
+
+func TestEvictExpired_FreesClientSlots(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	for i := range maxClients {
+		if err := store.SaveClient(&RegisteredClient{
+			ClientID:  fmt.Sprintf("old-%d", i),
+			CreatedAt: now.Add(-(clientTTL + time.Hour)),
+		}); err != nil {
+			t.Fatalf("saving client %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveClient(&RegisteredClient{
+		ClientID:  "overflow",
+		CreatedAt: now,
+	})
+	if err != errMaxClientsReached {
+		t.Fatalf("expected maxClients limit, got %v", err)
+	}
+
+	store.evictExpired(now)
+
+	err = store.SaveClient(&RegisteredClient{
+		ClientID:  "new-after-eviction",
+		CreatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("expected registration to succeed after eviction: %v", err)
+	}
+}
+
+func TestStopCleanup_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.StartCleanup()
+
+	store.StopCleanup()
+	store.StopCleanup()
 }

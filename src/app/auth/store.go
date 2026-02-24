@@ -6,12 +6,19 @@ import (
 	"time"
 )
 
+const (
+	cleanupInterval = 5 * time.Minute
+	maxClients      = 10000
+	clientTTL       = 30 * 24 * time.Hour
+)
+
 var (
 	errAuthCodeNotFound      = errors.New("authorization code not found")
 	errAuthCodeExpired       = errors.New("authorization code has expired")
 	errRefreshTokenNotFound  = errors.New("refresh token not found")
 	errRefreshTokenExpired   = errors.New("refresh token has expired")
 	errClientNotFound        = errors.New("client not found")
+	errMaxClientsReached     = errors.New("maximum number of registered clients reached")
 )
 
 // Code represents an OAuth 2.1 authorization code stored in memory.
@@ -45,11 +52,14 @@ type RegisteredClient struct {
 }
 
 // Store is a thread-safe in-memory store for OAuth entities.
+// It runs a periodic cleanup goroutine to evict expired auth codes, refresh tokens, and clients.
 type Store struct {
 	mu            sync.RWMutex
 	authCodes     map[string]*Code
 	refreshTokens map[string]*RefreshToken
 	clients       map[string]*RegisteredClient
+	stopCleanup   chan struct{}
+	stopOnce      sync.Once
 }
 
 // NewStore creates a new empty Store.
@@ -58,6 +68,55 @@ func NewStore() *Store {
 		authCodes:     make(map[string]*Code),
 		refreshTokens: make(map[string]*RefreshToken),
 		clients:       make(map[string]*RegisteredClient),
+		stopCleanup:   make(chan struct{}),
+	}
+}
+
+// StartCleanup begins periodic eviction of expired auth codes and refresh tokens.
+func (s *Store) StartCleanup() {
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.evictExpired(time.Now())
+			case <-s.stopCleanup:
+				return
+			}
+		}
+	}()
+}
+
+// StopCleanup stops the periodic cleanup goroutine. It is safe to call multiple times.
+func (s *Store) StopCleanup() {
+	s.stopOnce.Do(func() {
+		close(s.stopCleanup)
+	})
+}
+
+// evictExpired removes all expired auth codes, refresh tokens, and clients.
+func (s *Store) evictExpired(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for key, ac := range s.authCodes {
+		if now.After(ac.ExpiresAt) {
+			delete(s.authCodes, key)
+		}
+	}
+
+	for key, rt := range s.refreshTokens {
+		if now.After(rt.ExpiresAt) {
+			delete(s.refreshTokens, key)
+		}
+	}
+
+	for key, client := range s.clients {
+		if now.After(client.CreatedAt.Add(clientTTL)) {
+			delete(s.clients, key)
+		}
 	}
 }
 
@@ -97,6 +156,24 @@ func (s *Store) SaveRefreshToken(token *RefreshToken) {
 	s.refreshTokens[token.Token] = token
 }
 
+// GetRefreshToken retrieves a refresh token without consuming it.
+// Use this to validate token properties (e.g., client_id) before consuming.
+func (s *Store) GetRefreshToken(token string, now time.Time) (*RefreshToken, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rt, ok := s.refreshTokens[token]
+	if !ok {
+		return nil, errRefreshTokenNotFound
+	}
+
+	if now.After(rt.ExpiresAt) {
+		return nil, errRefreshTokenExpired
+	}
+
+	return rt, nil
+}
+
 // ConsumeRefreshToken retrieves and deletes a refresh token (rotation).
 // The caller is responsible for saving a new refresh token after consuming the old one.
 // Returns an error if the token is not found or has expired.
@@ -118,12 +195,19 @@ func (s *Store) ConsumeRefreshToken(token string, now time.Time) (*RefreshToken,
 	return rt, nil
 }
 
-// SaveClient stores a registered client.
-func (s *Store) SaveClient(client *RegisteredClient) {
+// SaveClient stores a registered client. Returns an error if the maximum number
+// of registered clients has been reached.
+func (s *Store) SaveClient(client *RegisteredClient) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.clients) >= maxClients {
+		return errMaxClientsReached
+	}
+
 	s.clients[client.ClientID] = client
+
+	return nil
 }
 
 // GetClient retrieves a registered client by its client ID.

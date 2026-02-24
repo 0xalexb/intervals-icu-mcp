@@ -6,6 +6,7 @@ A Model Context Protocol (MCP) server for [Intervals.icu](https://intervals.icu)
 
 - Go 1.25 or later
 - golangci-lint (for linting)
+- A [GitHub OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) (required for streamable transport authentication)
 
 ## Configuration
 
@@ -24,10 +25,14 @@ Run the MCP server (stdio transport, default):
 go run ./src/...
 ```
 
-Run with streamable HTTP transport:
+Run with streamable HTTP transport (requires OAuth flags):
 
 ```sh
-go run ./src/... --transport streamable --address 127.0.0.1:8080
+go run ./src/... --transport streamable --address 127.0.0.1:8080 \
+  --github-client-id <your-github-client-id> \
+  --github-client-secret <your-github-client-secret> \
+  --auth-issuer http://localhost:8080 \
+  --allowed-users your-github-username
 ```
 
 The MCP endpoint is served at `/mcp` (not configurable). When using the streamable transport, the endpoint is served behind a middleware stack that provides:
@@ -46,6 +51,28 @@ The MCP endpoint is served at `/mcp` (not configurable). When using the streamab
 | `--transport` | `stdio` | Transport type: `stdio` or `streamable` |
 | `--address` | `127.0.0.1:8080` | Listen address for streamable HTTP transport (e.g., `127.0.0.1:8080` or `:9000`) |
 | `--allowed-origins` | _(empty)_ | Comma-separated list of allowed CORS origins as full URLs (e.g., `http://localhost:3000,https://example.com`) |
+| `--github-client-id` | _(empty)_ | GitHub OAuth app client ID (required for streamable) |
+| `--github-client-secret` | _(empty)_ | GitHub OAuth app client secret |
+| `--allowed-users` | _(empty)_ | Comma-separated allowed GitHub usernames (empty = allow all authenticated users) |
+| `--jwt-secret` | _(empty)_ | HMAC-SHA256 signing key for JWT tokens (auto-generated if empty) |
+| `--auth-issuer` | _(empty)_ | Issuer URL for the OAuth authorization server (required for streamable). Must be a full URL with http/https scheme |
+
+### Authentication (streamable transport)
+
+OAuth 2.1 authentication is mandatory for the streamable HTTP transport. The server acts as both an OAuth Authorization Server (proxying to GitHub for identity) and a Resource Server (validating JWTs on `/mcp`). Stdio transport does not use authentication.
+
+Create a GitHub OAuth App at GitHub Settings > Developer settings > OAuth Apps, with the callback URL set to `<your-issuer-url>/oauth/callback`.
+
+OAuth endpoints exposed in streamable mode:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/oauth-protected-resource` | GET | Protected resource metadata (RFC 9728) |
+| `/.well-known/oauth-authorization-server` | GET | Authorization server metadata (RFC 8414) |
+| `/oauth/authorize` | GET | Start OAuth authorization flow (redirects to GitHub) |
+| `/oauth/callback` | GET | GitHub OAuth callback |
+| `/oauth/token` | POST | Token exchange (authorization_code and refresh_token grants) |
+| `/oauth/register` | POST | Dynamic client registration (RFC 7591) |
 
 Print version:
 

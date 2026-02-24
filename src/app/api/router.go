@@ -76,6 +76,7 @@ func NewRouter(params RouterParams) http.Handler {
 		params.TokenVerifier,
 		&auth.RequireBearerTokenOptions{
 			ResourceMetadataURL: resourceMetadataURL,
+			Scopes:              []string{"mcp"},
 		},
 	)
 

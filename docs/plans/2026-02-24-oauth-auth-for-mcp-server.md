@@ -83,11 +83,11 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Create: `src/app/auth/metadata.go`
 - Create: `src/app/auth/metadata_test.go`
 
-- [ ] Define `AuthorizationServerMetadata` struct (our own, since go-sdk's is behind build tag): issuer, authorization_endpoint, token_endpoint, registration_endpoint, response_types_supported, grant_types_supported, token_endpoint_auth_methods_supported, code_challenge_methods_supported, scopes_supported
-- [ ] Implement `NewAuthorizationServerMetadata(issuer Issuer) *AuthorizationServerMetadata` - constructs metadata with endpoints derived from issuer
-- [ ] Implement `NewProtectedResourceMetadata(issuer Issuer) *oauthex.ProtectedResourceMetadata` - sets resource=issuer, authorization_servers=[issuer], scopes_supported=["mcp"], bearer_methods_supported=["header"]
-- [ ] Write tests verifying correct endpoint construction and JSON serialization
-- [ ] Run project test suite - must pass before task 6
+- [x] Define `AuthorizationServerMetadata` struct (our own, since go-sdk's is behind build tag): issuer, authorization_endpoint, token_endpoint, registration_endpoint, response_types_supported, grant_types_supported, token_endpoint_auth_methods_supported, code_challenge_methods_supported, scopes_supported
+- [x] Implement `NewAuthorizationServerMetadata(issuer Issuer) *AuthorizationServerMetadata` - constructs metadata with endpoints derived from issuer
+- [x] Implement `NewProtectedResourceMetadata(issuer Issuer) *oauthex.ProtectedResourceMetadata` - sets resource=issuer, authorization_servers=[issuer], scopes_supported=["mcp"], bearer_methods_supported=["header"]
+- [x] Write tests verifying correct endpoint construction and JSON serialization
+- [x] Run project test suite - must pass before task 6
 
 ### Task 6: OAuth HTTP handlers
 

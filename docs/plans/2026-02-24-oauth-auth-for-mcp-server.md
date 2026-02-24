@@ -42,15 +42,15 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Create: `src/app/auth/store.go`
 - Create: `src/app/auth/store_test.go`
 
-- [ ] Define `AuthCode` struct: code, clientID, redirectURI, codeChallenge, codeChallengeMethod, gitHubUsername, scopes, expiresAt
-- [ ] Define `RefreshToken` struct: token, clientID, gitHubUsername, scopes, expiresAt
-- [ ] Define `RegisteredClient` struct: clientID, redirectURIs, clientName, grantTypes, createdAt
-- [ ] Implement `Store` with `sync.RWMutex` and maps for each entity
-- [ ] Implement `SaveAuthCode`, `ConsumeAuthCode` (one-time use, checks expiry)
-- [ ] Implement `SaveRefreshToken`, `ConsumeRefreshToken` (rotation - consume old, caller saves new)
-- [ ] Implement `SaveClient`, `GetClient`
-- [ ] Write tests for CRUD operations, one-time consumption, expiry behavior
-- [ ] Run project test suite - must pass before task 3
+- [x] Define `AuthCode` struct: code, clientID, redirectURI, codeChallenge, codeChallengeMethod, gitHubUsername, scopes, expiresAt
+- [x] Define `RefreshToken` struct: token, clientID, gitHubUsername, scopes, expiresAt
+- [x] Define `RegisteredClient` struct: clientID, redirectURIs, clientName, grantTypes, createdAt
+- [x] Implement `Store` with `sync.RWMutex` and maps for each entity
+- [x] Implement `SaveAuthCode`, `ConsumeAuthCode` (one-time use, checks expiry)
+- [x] Implement `SaveRefreshToken`, `ConsumeRefreshToken` (rotation - consume old, caller saves new)
+- [x] Implement `SaveClient`, `GetClient`
+- [x] Write tests for CRUD operations, one-time consumption, expiry behavior
+- [x] Run project test suite - must pass before task 3
 
 ### Task 3: JWT issuance and verification
 

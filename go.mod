@@ -10,6 +10,8 @@ require (
 )
 
 require (
+	github.com/gofrs/uuid/v5 v5.4.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/dig v1.19.0 // indirect

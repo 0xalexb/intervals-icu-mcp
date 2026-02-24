@@ -58,12 +58,12 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Create: `src/app/auth/jwt.go`
 - Create: `src/app/auth/jwt_test.go`
 
-- [ ] Implement `IssueAccessToken(secret JWTSecret, issuer Issuer, ttl time.Duration, username string, scopes []string) (string, error)` using `github.com/golang-jwt/jwt/v5` with HMAC-SHA256
-- [ ] Include standard claims: iss, sub (username), exp, iat, jti (uuid), scope (space-separated)
-- [ ] Implement `IssueRefreshToken() (string, error)` - random 32-byte base64url via `crypto/rand`
-- [ ] Implement `NewTokenVerifier(secret JWTSecret, issuer Issuer) auth.TokenVerifier` - parses JWT, validates signature and claims, maps to `auth.TokenInfo` with `UserID` = GitHub username
-- [ ] Write tests: issue and verify round-trip, expired token rejection, wrong secret rejection, invalid token format
-- [ ] Run project test suite - must pass before task 4
+- [x] Implement `IssueAccessToken(secret JWTSecret, issuer Issuer, ttl time.Duration, username string, scopes []string) (string, error)` using `github.com/golang-jwt/jwt/v5` with HMAC-SHA256
+- [x] Include standard claims: iss, sub (username), exp, iat, jti (uuid), scope (space-separated)
+- [x] Implement `IssueRefreshToken() (string, error)` - random 32-byte base64url via `crypto/rand`
+- [x] Implement `NewTokenVerifier(secret JWTSecret, issuer Issuer) auth.TokenVerifier` - parses JWT, validates signature and claims, maps to `auth.TokenInfo` with `UserID` = GitHub username
+- [x] Write tests: issue and verify round-trip, expired token rejection, wrong secret rejection, invalid token format
+- [x] Run project test suite - must pass before task 4
 
 ### Task 4: GitHub OAuth integration
 

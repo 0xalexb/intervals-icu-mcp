@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	di "github.com/0xalexb/hjarta-di"
 	"github.com/0xalexb/hjarta-di/listener"
@@ -79,21 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if transportValue == app.TransportStreamable {
-		if flags.githubClientID == "" {
-			_, _ = fmt.Fprintln(os.Stderr,
-				"streamable transport requires --github-client-id flag")
-
-			os.Exit(1)
-		}
-
-		if flags.authIssuer == "" {
-			_, _ = fmt.Fprintln(os.Stderr,
-				"streamable transport requires --auth-issuer flag")
-
-			os.Exit(1)
-		}
-	}
+	validateStreamableFlags(transportValue, flags)
 
 	opts := []di.Option{
 		di.WithLogLevel("info"),
@@ -119,4 +106,36 @@ func main() {
 	application := di.NewApp(opts...)
 
 	application.Run()
+}
+
+func validateStreamableFlags(transport app.Transport, flags cliFlags) {
+	if transport != app.TransportStreamable {
+		return
+	}
+
+	type requiredFlag struct {
+		name  string
+		value string
+	}
+
+	required := []requiredFlag{
+		{"--github-client-id", flags.githubClientID},
+		{"--github-client-secret", flags.githubClientSec},
+		{"--auth-issuer", flags.authIssuer},
+	}
+
+	var missing []string
+
+	for _, f := range required {
+		if f.value == "" {
+			missing = append(missing, f.name)
+		}
+	}
+
+	if len(missing) > 0 {
+		_, _ = fmt.Fprintf(os.Stderr,
+			"streamable transport requires flags: %s\n", strings.Join(missing, ", "))
+
+		os.Exit(1)
+	}
 }

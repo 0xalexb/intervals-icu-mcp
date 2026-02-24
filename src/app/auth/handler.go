@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,10 +24,19 @@ const (
 	authCodeTTL        = 10 * time.Minute
 	accessTokenTTL     = 1 * time.Hour
 	refreshTokenTTL    = 30 * 24 * time.Hour
+	stateTTL           = 10 * time.Minute
 	stateNonceLength   = 16
 	authCodeLength     = 32
 	signedStateParts   = 2
 	githubAuthorizeURL = "https://github.com/login/oauth/authorize"
+
+	grantTypeAuthorizationCode = "authorization_code"
+	grantTypeRefreshToken      = "refresh_token"
+
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+
+	scopeMCP = "mcp"
 )
 
 var errInvalidState = errors.New("invalid or tampered state parameter")
@@ -80,6 +91,7 @@ type authorizeState struct {
 	OriginalState       string `json:"original_state"`
 	Scope               string `json:"scope"`
 	Nonce               string `json:"nonce"`
+	CreatedAt           int64  `json:"created_at"`
 }
 
 // oauthValidationError holds an OAuth error suitable for writing to the response.
@@ -99,7 +111,7 @@ func (h *Handler) HandleAuthServerMetadata(w http.ResponseWriter, _ *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(h.metadata); err != nil {
-		http.Error(w, "failed to encode metadata", http.StatusInternalServerError)
+		slog.Error("failed to encode metadata", "error", err)
 	}
 }
 
@@ -110,6 +122,26 @@ func (h *Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	authState, valErr := validateAuthorizeParams(r.URL.Query())
 	if valErr != nil {
 		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
+
+		return
+	}
+
+	client, err := h.store.GetClient(authState.ClientID)
+	if err != nil {
+		writeOAuthError(w, "invalid_request", "unknown client_id", http.StatusBadRequest)
+
+		return
+	}
+
+	if !slices.Contains(client.GrantTypes, grantTypeAuthorizationCode) {
+		writeOAuthError(w, "unauthorized_client",
+			"client is not registered for authorization_code grant", http.StatusBadRequest)
+
+		return
+	}
+
+	if !slices.Contains(client.RedirectURIs, authState.RedirectURI) {
+		writeOAuthError(w, "invalid_request", "redirect_uri not registered for this client", http.StatusBadRequest)
 
 		return
 	}
@@ -180,15 +212,38 @@ func validateAuthorizeParams(query url.Values) (authorizeState, *oauthValidation
 		}
 	}
 
+	scope, scopeErr := validateScope(query.Get("scope"))
+	if scopeErr != nil {
+		return authorizeState{}, scopeErr
+	}
+
 	return authorizeState{
 		ClientID:            clientID,
 		RedirectURI:         redirectURI,
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: "S256",
 		OriginalState:       query.Get("state"),
-		Scope:               query.Get("scope"),
+		Scope:               scope,
 		Nonce:               nonce,
+		CreatedAt:           time.Now().Unix(),
 	}, nil
+}
+
+func validateScope(raw string) (string, *oauthValidationError) {
+	scope := raw
+	if scope == "" {
+		scope = scopeMCP
+	}
+
+	for s := range strings.FieldsSeq(scope) {
+		if s != scopeMCP {
+			return "", &oauthValidationError{
+				"invalid_scope", "unsupported scope: " + s, http.StatusBadRequest,
+			}
+		}
+	}
+
+	return scope, nil
 }
 
 // HandleCallback handles GET /oauth/callback. It validates the HMAC-signed state,
@@ -322,9 +377,9 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	grantType := r.FormValue("grant_type")
 
 	switch grantType {
-	case "authorization_code":
+	case grantTypeAuthorizationCode:
 		h.handleAuthorizationCodeGrant(w, r)
-	case "refresh_token":
+	case grantTypeRefreshToken:
 		h.handleRefreshTokenGrant(w, r)
 	default:
 		writeOAuthError(w, "unsupported_grant_type",
@@ -341,7 +396,21 @@ func (h *Handler) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.issueTokenPair(w, authCode.GitHubUsername, authCode.ClientID, authCode.Scopes)
+	client, err := h.store.GetClient(authCode.ClientID)
+	if err != nil {
+		writeOAuthError(w, "invalid_grant", "unknown client", http.StatusBadRequest)
+
+		return
+	}
+
+	if !slices.Contains(client.GrantTypes, grantTypeAuthorizationCode) {
+		writeOAuthError(w, "unauthorized_client",
+			"client is not registered for authorization_code grant", http.StatusBadRequest)
+
+		return
+	}
+
+	h.issueTokenPair(w, authCode.GitHubUsername, authCode.ClientID, authCode.Scopes, client.GrantTypes)
 }
 
 func (h *Handler) validateAuthCodeGrant(r *http.Request) (*Code, *oauthValidationError) {
@@ -359,6 +428,20 @@ func (h *Handler) validateAuthCodeGrant(r *http.Request) (*Code, *oauthValidatio
 		}
 	}
 
+	clientID := r.FormValue("client_id")
+	if clientID == "" {
+		return nil, &oauthValidationError{
+			"invalid_request", "client_id is required", http.StatusBadRequest,
+		}
+	}
+
+	redirectURI := r.FormValue("redirect_uri")
+	if redirectURI == "" {
+		return nil, &oauthValidationError{
+			"invalid_request", "redirect_uri is required", http.StatusBadRequest,
+		}
+	}
+
 	authCode, err := h.store.ConsumeAuthCode(code, time.Now())
 	if err != nil {
 		return nil, &oauthValidationError{
@@ -372,15 +455,13 @@ func (h *Handler) validateAuthCodeGrant(r *http.Request) (*Code, *oauthValidatio
 		}
 	}
 
-	clientID := r.FormValue("client_id")
-	if clientID != "" && clientID != authCode.ClientID {
+	if clientID != authCode.ClientID {
 		return nil, &oauthValidationError{
 			"invalid_grant", "client_id mismatch", http.StatusBadRequest,
 		}
 	}
 
-	redirectURI := r.FormValue("redirect_uri")
-	if redirectURI != "" && redirectURI != authCode.RedirectURI {
+	if redirectURI != authCode.RedirectURI {
 		return nil, &oauthValidationError{
 			"invalid_grant", "redirect_uri mismatch", http.StatusBadRequest,
 		}
@@ -397,18 +478,47 @@ func (h *Handler) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, time.Now())
+	clientID := r.FormValue("client_id")
+	if clientID == "" {
+		writeOAuthError(w, "invalid_request", "client_id is required", http.StatusBadRequest)
+
+		return
+	}
+
+	client, err := h.store.GetClient(clientID)
+	if err != nil {
+		writeOAuthError(w, "invalid_grant", "unknown client", http.StatusBadRequest)
+
+		return
+	}
+
+	if !slices.Contains(client.GrantTypes, grantTypeRefreshToken) {
+		writeOAuthError(w, "unauthorized_client",
+			"client is not registered for refresh_token grant", http.StatusBadRequest)
+
+		return
+	}
+
+	now := time.Now()
+
+	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, now)
 	if err != nil {
 		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
 
 		return
 	}
 
-	h.issueTokenPair(w, refreshTok.GitHubUsername, refreshTok.ClientID, refreshTok.Scopes)
+	if clientID != refreshTok.ClientID {
+		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
+
+		return
+	}
+
+	h.issueTokenPair(w, refreshTok.GitHubUsername, refreshTok.ClientID, refreshTok.Scopes, client.GrantTypes)
 }
 
 func (h *Handler) issueTokenPair(
-	w http.ResponseWriter, username, clientID string, scopes []string,
+	w http.ResponseWriter, username, clientID string, scopes, grantTypes []string,
 ) {
 	accessToken, err := IssueAccessToken(h.jwtSecret, h.issuer, accessTokenTTL, username, scopes)
 	if err != nil {
@@ -417,20 +527,24 @@ func (h *Handler) issueTokenPair(
 		return
 	}
 
-	refreshToken, err := IssueRefreshToken()
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+	var refreshToken string
 
-		return
+	if slices.Contains(grantTypes, grantTypeRefreshToken) {
+		refreshToken, err = IssueRefreshToken()
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+
+			return
+		}
+
+		h.store.SaveRefreshToken(&RefreshToken{
+			Token:         refreshToken,
+			ClientID:      clientID,
+			GitHubUsername: username,
+			Scopes:        scopes,
+			ExpiresAt:     time.Now().Add(refreshTokenTTL),
+		})
 	}
-
-	h.store.SaveRefreshToken(&RefreshToken{
-		Token:         refreshToken,
-		ClientID:      clientID,
-		GitHubUsername: username,
-		Scopes:        scopes,
-		ExpiresAt:     time.Now().Add(refreshTokenTTL),
-	})
 
 	writeTokenResponse(w, accessToken, refreshToken, int(accessTokenTTL.Seconds()))
 }
@@ -471,9 +585,11 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grantTypes := req.GrantTypes
-	if len(grantTypes) == 0 {
-		grantTypes = []string{"authorization_code"}
+	grantTypes, grantErr := validateGrantTypes(req.GrantTypes)
+	if grantErr != "" {
+		writeOAuthError(w, "invalid_client_metadata", grantErr, http.StatusBadRequest)
+
+		return
 	}
 
 	clientID, err := uuid.NewV4()
@@ -491,7 +607,11 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:    time.Now(),
 	}
 
-	h.store.SaveClient(client)
+	if err = h.store.SaveClient(client); err != nil {
+		writeOAuthError(w, "server_error", "too many registered clients", http.StatusServiceUnavailable)
+
+		return
+	}
 
 	resp := registrationResponse{
 		ClientID:     client.ClientID,
@@ -504,24 +624,63 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		slog.Error("failed to encode registration response", "error", err)
 	}
 }
 
-// validateRedirectURIs checks that redirect URIs are present and well-formed.
-// Returns an error message string, or empty string if valid.
+// validateRedirectURIs checks that redirect URIs are present, use http/https scheme,
+// have a non-empty host, and contain no fragment (per OAuth 2.1 Section 2.3.1).
+// HTTP scheme is only allowed for loopback addresses (127.0.0.1, [::1], localhost).
 func validateRedirectURIs(uris []string) string {
 	if len(uris) == 0 {
 		return "redirect_uris is required"
 	}
 
 	for _, uri := range uris {
-		if _, err := url.ParseRequestURI(uri); err != nil {
+		parsed, err := url.Parse(uri)
+		if err != nil {
 			return "invalid redirect_uri: " + uri
+		}
+
+		if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
+			return "redirect_uri must use http or https scheme: " + uri
+		}
+
+		if parsed.Host == "" {
+			return "redirect_uri must have a host: " + uri
+		}
+
+		if parsed.Fragment != "" {
+			return "redirect_uri must not contain a fragment: " + uri
+		}
+
+		if parsed.Scheme == schemeHTTP && !isLoopbackHost(parsed.Hostname()) {
+			return "redirect_uri with http scheme is only allowed for loopback addresses: " + uri
 		}
 	}
 
 	return ""
+}
+
+// isLoopbackHost returns true if the hostname is a loopback address.
+func isLoopbackHost(hostname string) bool {
+	return hostname == "127.0.0.1" || hostname == "::1" || hostname == "localhost"
+}
+
+// validateGrantTypes validates and defaults the grant_types list.
+// Returns the validated list and an error string (empty if valid).
+func validateGrantTypes(grantTypes []string) ([]string, string) {
+	if len(grantTypes) == 0 {
+		return []string{grantTypeAuthorizationCode}, ""
+	}
+
+	for _, gt := range grantTypes {
+		if gt != grantTypeAuthorizationCode && gt != grantTypeRefreshToken {
+			return nil, "unsupported grant_type: " + gt + "; only authorization_code and refresh_token are supported"
+		}
+	}
+
+	return grantTypes, ""
 }
 
 // signState creates an HMAC-SHA256 signed state string from the authorize parameters.
@@ -575,6 +734,10 @@ func (h *Handler) verifyState(signed string) (authorizeState, error) {
 		return authorizeState{}, fmt.Errorf("%w: %w", errInvalidState, err)
 	}
 
+	if time.Since(time.Unix(authState.CreatedAt, 0)) > stateTTL {
+		return authorizeState{}, errInvalidState
+	}
+
 	return authState, nil
 }
 
@@ -610,7 +773,7 @@ func writeTokenResponse(
 	w.Header().Set("Pragma", "no-cache")
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		slog.Error("failed to encode token response", "error", err)
 	}
 }
 
@@ -628,7 +791,7 @@ func writeOAuthError(w http.ResponseWriter, errCode, description string, status 
 		Error:       errCode,
 		Description: description,
 	}); err != nil {
-		http.Error(w, "failed to encode error response", http.StatusInternalServerError)
+		slog.Error("failed to encode OAuth error response", "error", err)
 	}
 }
 
@@ -648,14 +811,5 @@ func parseScopes(scope string) []string {
 		return nil
 	}
 
-	parts := strings.Fields(scope)
-	scopes := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		if part != "" {
-			scopes = append(scopes, part)
-		}
-	}
-
-	return scopes
+	return strings.Fields(scope)
 }

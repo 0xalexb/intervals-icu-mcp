@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	githubTokenURL = "https://github.com/login/oauth/access_token"
-	githubUserURL  = "https://api.github.com/user"
-	githubTimeout  = 10 * time.Second
+	githubTokenURL          = "https://github.com/login/oauth/access_token"
+	githubUserURL           = "https://api.github.com/user"
+	githubTimeout           = 10 * time.Second
+	maxGitHubResponseSize   = 1 << 20 // 1 MB
 )
 
 var (
@@ -73,7 +74,7 @@ func (g *GitHubClient) ExchangeGitHubCode(
 
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseSize))
 	if err != nil {
 		return "", fmt.Errorf("%w: reading response: %w", errGitHubTokenExchange, err)
 	}
@@ -121,7 +122,7 @@ func (g *GitHubClient) GetGitHubUser(ctx context.Context, accessToken string) (*
 
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxGitHubResponseSize))
 	if err != nil {
 		return nil, fmt.Errorf("%w: reading response: %w", errGitHubUserFetch, err)
 	}

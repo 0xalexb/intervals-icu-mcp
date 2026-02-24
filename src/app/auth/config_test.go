@@ -217,16 +217,29 @@ func TestNewValidatedIssuer_EmptyString(t *testing.T) {
 	}
 }
 
-func TestNewJWTSecret_ExplicitValue(t *testing.T) {
+func TestNewValidatedIssuer_TrailingSlashStripped(t *testing.T) {
 	t.Parallel()
 
-	secret, err := NewJWTSecret("my-secret-key")
+	issuer, err := NewValidatedIssuer("http://localhost:8080/")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if secret != "my-secret-key" {
-		t.Fatalf("expected 'my-secret-key', got %q", secret)
+	if issuer != "http://localhost:8080" {
+		t.Fatalf("expected trailing slash stripped, got %q", issuer)
+	}
+}
+
+func TestNewJWTSecret_ExplicitValue(t *testing.T) {
+	t.Parallel()
+
+	secret, err := NewJWTSecret("my-secret-key-that-is-at-least-32-chars-long")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if secret != "my-secret-key-that-is-at-least-32-chars-long" {
+		t.Fatalf("expected explicit secret value, got %q", secret)
 	}
 }
 

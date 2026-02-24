@@ -9,6 +9,7 @@
 - `src/app/client/` package contains the Intervals.icu HTTP client (auth, base URL, JSON requests).
 - `src/app/api/` package contains HTTP routing configuration (mounts MCP handler at `/mcp`).
 - `src/app/tools/` package contains MCP tool registrations (one file per tool).
+- `src/app/auth/` package contains OAuth 2.1 authentication (config, JWT, store, GitHub integration, HTTP handlers, metadata).
 
 ## Architecture
 
@@ -33,6 +34,22 @@
 - `src/app/api/origins.go` defines `RawAllowedOrigins` (named `string`, the raw CLI flag value supplied via `fx.Supply()` from main.go) and `AllowedOrigins` (named `[]string`, the parsed/validated list of full origin URLs). `NewAllowedOrigins` splits by comma, trims whitespace, drops empties, and validates each entry is a full origin URL with scheme (`http://` or `https://`), non-empty host, and no path/query/fragment. `AllowedOrigins` provides a `Hostnames()` method that extracts bare hostnames (without port) from the stored full URLs for use with the CORS middleware.
 - The API router applies a middleware stack (from hjarta-di's `listener/middleware` package) via routegroup's `Use()` in this order (outermost to innermost): Recovery (panic recovery) -> RequestID (X-Request-ID propagation) -> Logging (structured request logging via slog) -> RateLimit (100 req/s, burst 200) -> MaxRequestSize (1MB body limit) -> CORS (`middleware.CORS(opts...)` with functional options from hjarta-di; performs hostname-based origin matching against `AllowedOrigins.Hostnames()`; allows GET/POST/DELETE/OPTIONS with MCP protocol headers Mcp-Session-Id, Last-Event-ID, Mcp-Protocol-Version; exposes Mcp-Session-Id via `WithExposedHeaders`; max-age 86400) -> Compress (gzip). Timeout middleware is deliberately excluded because it would terminate long-lived SSE connections used by the MCP streamable transport.
 - The streamable HTTP handler is configured with a 30-minute idle session timeout (`SessionTimeout`) to prevent unbounded session accumulation from disconnected clients.
+- **OAuth 2.1 authentication** is mandatory for streamable HTTP transport. The server acts as both an OAuth Authorization Server (proxying to GitHub for identity) and a Resource Server (validating JWTs on `/mcp`). Auth is not used for stdio transport.
+- Auth requires three flags in streamable mode: `--github-client-id`, `--github-client-secret`, and `--auth-issuer`. The server refuses to start without them when `--transport streamable` is used.
+- `--github-client-id` flag sets the GitHub OAuth app client ID (required for streamable).
+- `--github-client-secret` flag sets the GitHub OAuth app client secret.
+- `--allowed-users` flag sets comma-separated allowed GitHub usernames (empty = allow all authenticated users).
+- `--jwt-secret` flag sets the HMAC-SHA256 signing key for JWT tokens (auto-generates a 32-byte random key if empty).
+- `--auth-issuer` flag sets the issuer URL for the OAuth authorization server (required for streamable). Must be a full URL with http/https scheme.
+- Auth CLI flags are supplied to DI as named types (`auth.GitHubClientID`, `auth.GitHubClientSecret`, `auth.RawAllowedUsers`, `auth.RawJWTSecret`, `auth.RawIssuer`) via `fx.Supply()` only when transport is streamable.
+- `src/app/auth/config.go` defines named types for CLI flag values and validation constructors: `NewAllowedUsers` (comma-split, lowercase), `NewValidatedIssuer` (URL validation), `NewJWTSecret` (auto-generate if empty).
+- `src/app/auth/store.go` implements an in-memory `Store` with `sync.RWMutex` for auth codes (one-time use with expiry), refresh tokens (rotation via consume-and-reissue), and registered clients (dynamic registration per RFC 7591).
+- `src/app/auth/jwt.go` implements `IssueAccessToken` (HMAC-SHA256 JWT with iss/sub/exp/iat/jti/scope claims), `IssueRefreshToken` (random 32-byte base64url), and `NewTokenVerifier` (returns `auth.TokenVerifier` that maps JWT to `auth.TokenInfo`).
+- `src/app/auth/github.go` implements `GitHubClient` with `ExchangeGitHubCode` (POST to GitHub token endpoint) and `GetGitHubUser` (GET GitHub user API). Base URLs are configurable for testing.
+- `src/app/auth/metadata.go` implements `NewAuthorizationServerMetadata` (AS metadata with endpoints derived from issuer) and `NewProtectedResourceMetadata` (protected resource metadata pointing to the AS).
+- `src/app/auth/handler.go` implements `Handler` with OAuth HTTP endpoints: `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`), `HandleAuthorize` (GET `/oauth/authorize` - validates PKCE, HMAC-signs state, redirects to GitHub), `HandleCallback` (GET `/oauth/callback` - verifies state, exchanges GitHub code, checks allowlist, issues auth code), `HandleToken` (POST `/oauth/token` - authorization_code with PKCE and refresh_token grants), `HandleRegister` (POST `/oauth/register` - dynamic client registration).
+- `src/app/auth/di.go` contains `auth.Module`, which provides: AllowedUsers, validated Issuer, JWTSecret, Store, Handler, GitHubClient, AuthorizationServerMetadata, ProtectedResourceMetadata, TokenVerifier. `app.Module` composes `auth.Module` as a sub-module. Re-exports `oauthex.ProtectedResourceMetadata` and `auth.TokenVerifier` as type aliases.
+- The API router (in streamable mode) registers OAuth discovery and flow endpoints, and wraps `/mcp` with `auth.RequireBearerToken` middleware that validates JWT bearer tokens and sets `ResourceMetadataURL` to `/.well-known/oauth-protected-resource`.
 - API tools receive `*client.Client` via DI and return JSON responses as TextContent.
 - `src/app/client/testing.go` exports `NewTestClient()` for creating test clients with custom base URLs (used by tool tests with `httptest.Server`).
 
@@ -49,10 +66,11 @@
 - Linter strategy: `default: all` with minimal exclusions - fix issues in code rather than suppressing them.
 - depguard runs in strict mode; new dependencies must be added to the allow lists in `.golangci.yml`.
 - `wsl` linter is disabled globally.
-- Test files have exclusions for `err113`, `funlen`, `exhaustruct`, `gosec`, `cyclop`, `dupl`, `varnamelen`, `goconst`, `wsl_v5`, `lll`, `perfsprint`, `errorlint`, `errcheck`, and `tagalign`.
+- Test files have exclusions for `err113`, `funlen`, `exhaustruct`, `gosec`, `cyclop`, `dupl`, `varnamelen`, `goconst`, `wsl_v5`, `lll`, `perfsprint`, `errorlint`, `errcheck`, `tagalign`, and `forcetypeassert`.
 - `src/app/tools/` path has exclusions for `dupl` and `tagliatelle` (tool files share repetitive structure).
 - `src/app/api/` path has a text-based exclusion for "avoid meaningless package names" (the `api` package name is accepted despite the revive suggestion).
 - `src/app/` path has exclusions for `exhaustruct` (MCP server, DI, and client code use partial struct initialization extensively).
+- `src/app/auth/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth handler, store, and metadata code use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
 - `testpackage` linter is disabled globally; tests use internal package access (e.g., `package app` not `package app_test`).
 - Use `//nolint:<linter>` comments only when the issue is inherent to the framework pattern (e.g., `ireturn` on `fx.Option` returns, `contextcheck` when fx lifecycle hooks require creating a new context, `gochecknoglobals` on `fx.Module` package variables).
 
@@ -60,3 +78,4 @@
 
 - Go version: 1.25
 - Module path: `github.com/0xalexb/intervals-icu-mcp`
+- Auth dependencies: `github.com/golang-jwt/jwt/v5` (JWT issuance/verification), `github.com/gofrs/uuid/v5` (client ID generation)

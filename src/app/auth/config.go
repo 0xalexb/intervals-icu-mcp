@@ -14,8 +14,12 @@ import (
 const jwtSecretLength = 32
 
 var (
-	errIssuerMissingScheme = errors.New("issuer must have http or https scheme")
-	errIssuerEmptyHost     = errors.New("issuer must have a non-empty host")
+	errIssuerMissingScheme    = errors.New("issuer must have http or https scheme")
+	errIssuerEmptyHost        = errors.New("issuer must have a non-empty host")
+	errIssuerHasPath          = errors.New("issuer must not contain a path")
+	errIssuerHasQuery         = errors.New("issuer must not contain a query string")
+	errIssuerHasFragment      = errors.New("issuer must not contain a fragment")
+	errJWTSecretTooShort      = errors.New("jwt secret too short")
 )
 
 // GitHubClientID is the GitHub OAuth app client ID, injected from main.go via DI.
@@ -79,7 +83,7 @@ func NewValidatedIssuer(raw RawIssuer) (Issuer, error) {
 		return "", fmt.Errorf("invalid issuer URL: %w", err)
 	}
 
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
 		return "", errIssuerMissingScheme
 	}
 
@@ -87,15 +91,37 @@ func NewValidatedIssuer(raw RawIssuer) (Issuer, error) {
 		return "", errIssuerEmptyHost
 	}
 
-	return Issuer(raw), nil
+	cleanPath := strings.TrimRight(parsed.Path, "/")
+	if cleanPath != "" {
+		return "", errIssuerHasPath
+	}
+
+	if parsed.RawQuery != "" {
+		return "", errIssuerHasQuery
+	}
+
+	if parsed.Fragment != "" {
+		return "", errIssuerHasFragment
+	}
+
+	return Issuer(strings.TrimRight(string(raw), "/")), nil
 }
 
 // NewJWTSecret validates or auto-generates a JWT signing secret.
 // If the input is empty, a cryptographically random 32-byte secret is generated
-// and returned as a base64url-encoded string.
+// and returned as a base64url-encoded string. If provided, the secret must be at
+// least 32 characters for HMAC-SHA256 security.
 func NewJWTSecret(raw RawJWTSecret) (JWTSecret, error) {
-	if strings.TrimSpace(string(raw)) != "" {
-		return JWTSecret(raw), nil
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed != "" {
+		if len(trimmed) < jwtSecretLength {
+			return "", fmt.Errorf(
+				"%w: must be at least %d characters, got %d",
+				errJWTSecretTooShort, jwtSecretLength, len(trimmed),
+			)
+		}
+
+		return JWTSecret(trimmed), nil
 	}
 
 	buf := make([]byte, jwtSecretLength)

@@ -14,8 +14,8 @@ var (
 	errClientNotFound        = errors.New("client not found")
 )
 
-// AuthCode represents an OAuth 2.1 authorization code stored in memory.
-type AuthCode struct {
+// Code represents an OAuth 2.1 authorization code stored in memory.
+type Code struct {
 	Code                string
 	ClientID            string
 	RedirectURI         string
@@ -47,7 +47,7 @@ type RegisteredClient struct {
 // Store is a thread-safe in-memory store for OAuth entities.
 type Store struct {
 	mu            sync.RWMutex
-	authCodes     map[string]*AuthCode
+	authCodes     map[string]*Code
 	refreshTokens map[string]*RefreshToken
 	clients       map[string]*RegisteredClient
 }
@@ -55,14 +55,14 @@ type Store struct {
 // NewStore creates a new empty Store.
 func NewStore() *Store {
 	return &Store{
-		authCodes:     make(map[string]*AuthCode),
+		authCodes:     make(map[string]*Code),
 		refreshTokens: make(map[string]*RefreshToken),
 		clients:       make(map[string]*RegisteredClient),
 	}
 }
 
 // SaveAuthCode stores an authorization code.
-func (s *Store) SaveAuthCode(code *AuthCode) {
+func (s *Store) SaveAuthCode(code *Code) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -71,7 +71,7 @@ func (s *Store) SaveAuthCode(code *AuthCode) {
 
 // ConsumeAuthCode retrieves and deletes an authorization code (one-time use).
 // Returns an error if the code is not found or has expired.
-func (s *Store) ConsumeAuthCode(code string, now time.Time) (*AuthCode, error) {
+func (s *Store) ConsumeAuthCode(code string, now time.Time) (*Code, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

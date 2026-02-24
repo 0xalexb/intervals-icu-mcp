@@ -8,13 +8,65 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	appauth "github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 )
+
+const testIssuer = appauth.Issuer("http://localhost:8080")
 
 func localhostOrigins() AllowedOrigins {
 	return AllowedOrigins{"http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:9090"}
 }
 
-func TestNewRouter_MCPHandlerReachable(t *testing.T) {
+func testRouterParams(mcpHandler http.Handler, origins AllowedOrigins) RouterParams {
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	store := appauth.NewStore()
+	ghClient := appauth.NewGitHubClient()
+	metadata := appauth.NewAuthorizationServerMetadata(testIssuer)
+	prMetadata := appauth.NewProtectedResourceMetadata(testIssuer)
+	verifier := appauth.NewTokenVerifier(secret, testIssuer)
+
+	handler := appauth.NewHandler(appauth.HandlerParams{
+		Store:                       store,
+		AllowedUsers:                appauth.AllowedUsers{},
+		GitHubClientID:              "test-client-id",
+		GitHubClientSecret:          "test-client-secret",
+		JWTSecret:                   secret,
+		Issuer:                      testIssuer,
+		AuthorizationServerMetadata: metadata,
+		GitHubClient:                ghClient,
+	})
+
+	return RouterParams{
+		MCPHandler:                  mcpHandler,
+		Origins:                     origins,
+		AuthHandler:                 handler,
+		AuthorizationServerMetadata: metadata,
+		ProtectedResourceMetadata:   prMetadata,
+		TokenVerifier:               verifier,
+		Issuer:                      testIssuer,
+	}
+}
+
+func TestNewRouter_MCPHandlerRequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without auth token, got %d", rec.Code)
+	}
+}
+
+func TestNewRouter_MCPHandlerReachableWithValidToken(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -23,14 +75,21 @@ func TestNewRouter_MCPHandlerReachable(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("failed to issue test token: %v", err)
+	}
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	if !called {
-		t.Fatal("expected MCP handler to be called for /mcp")
+		t.Fatal("expected MCP handler to be called for /mcp with valid token")
 	}
 
 	if rec.Code != http.StatusOK {
@@ -38,27 +97,21 @@ func TestNewRouter_MCPHandlerReachable(t *testing.T) {
 	}
 }
 
-func TestNewRouter_MCPSubpathReachable(t *testing.T) {
+func TestNewRouter_MCPSubpathRequiresAuth(t *testing.T) {
 	t.Parallel()
 
-	called := false
 	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		called = true
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodGet, "/mcp/sse", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	if !called {
-		t.Fatal("expected MCP handler to be called for /mcp/sse")
-	}
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without auth token for /mcp/sse, got %d", rec.Code)
 	}
 }
 
@@ -71,7 +124,7 @@ func TestNewRouter_OtherPathNotReachable(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodGet, "/other", nil)
 	rec := httptest.NewRecorder()
@@ -95,7 +148,7 @@ func TestNewRouter_RootNotReachable(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
@@ -117,9 +170,13 @@ func TestNewRouter_RecoveryCatchesPanics(t *testing.T) {
 		panic("test panic")
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -135,9 +192,13 @@ func TestNewRouter_RequestIDPresent(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -154,7 +215,7 @@ func TestNewRouter_CORSPreflightHeaders(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodOptions, "/mcp", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
@@ -201,10 +262,14 @@ func TestNewRouter_ExposeHeadersMcpSessionId(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://localhost:8080")
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -221,7 +286,7 @@ func TestNewRouter_CORSRejectsNonLocalhostOrigin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://evil.com")
@@ -253,7 +318,7 @@ func TestNewRouter_CORSAllowsLoopbackVariants(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		router := NewRouter(mcpHandler, localhostOrigins())
+		router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 		req := httptest.NewRequest(http.MethodOptions, "/mcp", nil)
 		req.Header.Set("Origin", origin)
@@ -282,10 +347,14 @@ func TestNewRouter_CompressGzip(t *testing.T) {
 		_, _ = w.Write([]byte(largeBody))
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -320,15 +389,20 @@ func TestNewRouter_RateLimitExceeded(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	for range 200 {
 		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -350,10 +424,14 @@ func TestNewRouter_MaxRequestSizeRejects(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, localhostOrigins())
+	secret := appauth.JWTSecret("test-secret-for-router-tests")
+	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	oversized := bytes.NewReader(make([]byte, 1048576+1))
 	req := httptest.NewRequest(http.MethodPost, "/mcp", oversized)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -371,7 +449,7 @@ func TestNewRouter_CORSAllowsCustomOrigin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, customOrigins)
+	router := NewRouter(testRouterParams(mcpHandler, customOrigins))
 
 	req := httptest.NewRequest(http.MethodOptions, "/mcp", nil)
 	req.Header.Set("Origin", "https://example.com")
@@ -398,7 +476,7 @@ func TestNewRouter_CORSRejectsUnlistedOrigin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	router := NewRouter(mcpHandler, customOrigins)
+	router := NewRouter(testRouterParams(mcpHandler, customOrigins))
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://evil.com")
@@ -415,3 +493,55 @@ func TestNewRouter_CORSRejectsUnlistedOrigin(t *testing.T) {
 			rec.Header().Get("Access-Control-Expose-Headers"))
 	}
 }
+
+func TestNewRouter_OAuthEndpointsReachable(t *testing.T) {
+	t.Parallel()
+
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
+
+	endpoints := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/.well-known/oauth-authorization-server"},
+		{http.MethodGet, "/.well-known/oauth-protected-resource"},
+	}
+
+	for _, ep := range endpoints {
+		req := httptest.NewRequest(ep.method, ep.path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s %s: expected 200, got %d", ep.method, ep.path, rec.Code)
+		}
+	}
+}
+
+func TestNewRouter_ProtectedResourceMetadataContent(t *testing.T) {
+	t.Parallel()
+
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "http://localhost:8080") {
+		t.Fatalf("expected protected resource metadata to contain issuer, got %s", body)
+	}
+}
+

@@ -8,10 +8,11 @@ import (
 	"go.uber.org/fx/fxtest"
 
 	"github.com/0xalexb/intervals-icu-mcp/src/app/api"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
 )
 
-func TestModule_ProvidesServer(t *testing.T) {
+func TestModule_ProvidesServer_Streamable(t *testing.T) {
 	t.Parallel()
 
 	var server *Server
@@ -22,6 +23,11 @@ func TestModule_ProvidesServer(t *testing.T) {
 	app := fxtest.New(t,
 		fx.Supply(TransportStreamable),
 		fx.Supply(api.RawAllowedOrigins("http://localhost:3000,http://127.0.0.1:8080,http://[::1]:9090")),
+		fx.Supply(auth.GitHubClientID("test-client-id")),
+		fx.Supply(auth.GitHubClientSecret("test-client-secret")),
+		fx.Supply(auth.RawAllowedUsers("")),
+		fx.Supply(auth.RawJWTSecret("")),
+		fx.Supply(auth.RawIssuer("http://localhost:8080")),
 		fx.Decorate(func() *client.Client { return testClient }),
 		Module,
 		fx.Populate(&server),
@@ -38,6 +44,34 @@ func TestModule_ProvidesServer(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("expected Module to provide a non-nil HTTP handler via api module")
+	}
+
+	app.RequireStart()
+	app.RequireStop()
+}
+
+func TestModule_ProvidesServer_Stdio(t *testing.T) {
+	t.Parallel()
+
+	var server *Server
+
+	testClient := client.NewTestClient("http://localhost", "test-key", "i123", nil)
+
+	app := fxtest.New(t,
+		fx.Supply(TransportStdio),
+		fx.Supply(api.RawAllowedOrigins("")),
+		fx.Supply(auth.GitHubClientID("unused")),
+		fx.Supply(auth.GitHubClientSecret("unused")),
+		fx.Supply(auth.RawAllowedUsers("")),
+		fx.Supply(auth.RawJWTSecret("")),
+		fx.Supply(auth.RawIssuer("http://localhost:8080")),
+		fx.Decorate(func() *client.Client { return testClient }),
+		Module,
+		fx.Populate(&server),
+	)
+
+	if server == nil {
+		t.Fatal("expected Module to provide a non-nil Server")
 	}
 
 	app.RequireStart()

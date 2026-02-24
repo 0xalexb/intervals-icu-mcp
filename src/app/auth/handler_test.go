@@ -446,7 +446,7 @@ func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
 	codeVerifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                "test-auth-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -519,7 +519,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifier(t *testing.T) {
 
 	codeChallenge := computeS256Challenge("correct-verifier")
 
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                "test-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -554,7 +554,7 @@ func TestHandleToken_AuthorizationCodeGrant_ExpiredCode(t *testing.T) {
 
 	h := newTestHandler("", "")
 
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                "expired-code",
 		ClientID:            "my-client",
 		CodeChallenge:       "challenge",
@@ -591,7 +591,7 @@ func TestHandleToken_AuthorizationCodeGrant_CodeReuse(t *testing.T) {
 	codeVerifier := "my-verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                "one-time-code",
 		ClientID:            "my-client",
 		CodeChallenge:       codeChallenge,
@@ -636,7 +636,7 @@ func TestHandleToken_AuthorizationCodeGrant_ClientIDMismatch(t *testing.T) {
 	codeVerifier := "verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                "test-code",
 		ClientID:            "original-client",
 		CodeChallenge:       codeChallenge,

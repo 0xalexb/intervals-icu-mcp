@@ -115,29 +115,29 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Modify: `go.mod`
 - Modify: `.golangci.yml`
 
-- [ ] Create `auth.Module` (`fx.Module("auth", ...)`) providing: AllowedUsers, validated Issuer, JWTSecret, Store, Handler, AuthorizationServerMetadata, *oauthex.ProtectedResourceMetadata, auth.TokenVerifier
-- [ ] Add startup validation in `src/main.go`: when `--transport streamable`, require `--github-client-id` and `--auth-issuer` to be non-empty; exit with a clear error message if missing (e.g., "streamable transport requires --github-client-id and --auth-issuer flags")
-- [ ] When `--transport stdio`, ignore auth flags entirely (auth does not apply to stdio)
-- [ ] Add 5 CLI flags to `src/main.go`: `--github-client-id`, `--github-client-secret`, `--allowed-users`, `--jwt-secret`, `--auth-issuer`; supply new named types via `fx.Supply()`
-- [ ] Only supply auth types and include `auth.Module` when transport is streamable (conditional DI based on transport, not on whether flags happen to be set)
-- [ ] Add `auth.Module` to `app.Module` composition in `src/app/di.go` (always included; when stdio, the auth types simply won't be supplied so the module provides nothing)
-- [ ] Change `NewRouter` in `src/app/api/router.go` to accept `RouterParams` struct with `fx.In`: MCPHandler (tag `name:"mcp-raw"`), Origins, auth.Handler, auth.AuthorizationServerMetadata, *oauthex.ProtectedResourceMetadata, auth.TokenVerifier, auth.Issuer - no `optional:"true"` tags since auth is always present in streamable mode and router only exists in streamable mode
-- [ ] Register `/.well-known/oauth-protected-resource` (using `auth.ProtectedResourceMetadataHandler`), `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/callback`, `/oauth/token`, `/oauth/register`; wrap `/mcp` with `auth.RequireBearerToken` middleware (ResourceMetadataURL pointing to `/.well-known/oauth-protected-resource`)
-- [ ] Update `src/app/api/di.go`: remove `fx.ParamTags` from NewRouter annotation (struct tags on RouterParams handle injection)
-- [ ] Add `github.com/golang-jwt/jwt/v5` and `github.com/gofrs/uuid/v5` to `go.mod` via `go get`
-- [ ] Add `github.com/golang-jwt/jwt` and `github.com/gofrs/uuid` to depguard allow lists in `.golangci.yml` (both main and tests rules)
-- [ ] Add `src/app/auth/` path exclusion for `exhaustruct` in `.golangci.yml` (consistent with `src/app/` exclusion)
-- [ ] Write tests verifying: streamable mode fails to start without auth flags, streamable mode starts with auth flags, stdio mode starts without auth flags
-- [ ] Run project test suite - must pass before task 8
+- [x] Create `auth.Module` (`fx.Module("auth", ...)`) providing: AllowedUsers, validated Issuer, JWTSecret, Store, Handler, AuthorizationServerMetadata, *oauthex.ProtectedResourceMetadata, auth.TokenVerifier
+- [x] Add startup validation in `src/main.go`: when `--transport streamable`, require `--github-client-id` and `--auth-issuer` to be non-empty; exit with a clear error message if missing (e.g., "streamable transport requires --github-client-id and --auth-issuer flags")
+- [x] When `--transport stdio`, ignore auth flags entirely (auth does not apply to stdio)
+- [x] Add 5 CLI flags to `src/main.go`: `--github-client-id`, `--github-client-secret`, `--allowed-users`, `--jwt-secret`, `--auth-issuer`; supply new named types via `fx.Supply()`
+- [x] Only supply auth types and include `auth.Module` when transport is streamable (conditional DI based on transport, not on whether flags happen to be set)
+- [x] Add `auth.Module` to `app.Module` composition in `src/app/di.go` (always included; when stdio, the auth types simply won't be supplied so the module provides nothing)
+- [x] Change `NewRouter` in `src/app/api/router.go` to accept `RouterParams` struct with `fx.In`: MCPHandler (tag `name:"mcp-raw"`), Origins, auth.Handler, auth.AuthorizationServerMetadata, *oauthex.ProtectedResourceMetadata, auth.TokenVerifier, auth.Issuer - no `optional:"true"` tags since auth is always present in streamable mode and router only exists in streamable mode
+- [x] Register `/.well-known/oauth-protected-resource` (using `auth.ProtectedResourceMetadataHandler`), `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/callback`, `/oauth/token`, `/oauth/register`; wrap `/mcp` with `auth.RequireBearerToken` middleware (ResourceMetadataURL pointing to `/.well-known/oauth-protected-resource`)
+- [x] Update `src/app/api/di.go`: remove `fx.ParamTags` from NewRouter annotation (struct tags on RouterParams handle injection)
+- [x] Add `github.com/golang-jwt/jwt/v5` and `github.com/gofrs/uuid/v5` to `go.mod` via `go get`
+- [x] Add `github.com/golang-jwt/jwt` and `github.com/gofrs/uuid` to depguard allow lists in `.golangci.yml` (both main and tests rules)
+- [x] Add `src/app/auth/` path exclusion for `exhaustruct` in `.golangci.yml` (consistent with `src/app/` exclusion)
+- [x] Write tests verifying: streamable mode fails to start without auth flags, streamable mode starts with auth flags, stdio mode starts without auth flags
+- [x] Run project test suite - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] Manual test: run with `--transport stdio` (no auth flags) - verify stdio works as before
-- [ ] Manual test: run with `--transport streamable` without auth flags - verify server refuses to start with clear error
-- [ ] Manual test: run with `--transport streamable` with all auth flags - verify server starts and serves OAuth endpoints
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
-- [ ] Verify test coverage meets 80%+
+- [x] Manual test: run with `--transport stdio` (no auth flags) - verify stdio works as before
+- [x] Manual test: run with `--transport streamable` without auth flags - verify server refuses to start with clear error
+- [x] Manual test: run with `--transport streamable` with all auth flags - verify server starts and serves OAuth endpoints
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
+- [x] Verify test coverage meets 80%+
 
 ### Task 9: Update documentation
 

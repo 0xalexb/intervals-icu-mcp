@@ -95,14 +95,14 @@ Add OAuth 2.1 authentication to the MCP server's streamable HTTP transport. The 
 - Create: `src/app/auth/handler.go`
 - Create: `src/app/auth/handler_test.go`
 
-- [ ] Define `Handler` struct with DI-injected dependencies (`HandlerParams` with `fx.In`): Store, AllowedUsers, GitHubClientID, GitHubClientSecret, JWTSecret, Issuer, AuthorizationServerMetadata
-- [ ] Implement `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`) - serves AS metadata JSON
-- [ ] Implement `HandleAuthorize` (GET `/oauth/authorize`) - validates PKCE params (response_type=code, code_challenge, code_challenge_method=S256, client_id, redirect_uri, state, scope), generates HMAC-signed state containing original params, redirects to GitHub OAuth authorize URL
-- [ ] Implement `HandleCallback` (GET `/oauth/callback`) - validates HMAC state, exchanges GitHub code for access token, fetches GitHub user, checks allowlist, generates auth code, stores it, redirects to client's redirect_uri with code and state
-- [ ] Implement `HandleToken` (POST `/oauth/token`) - handles grant_type=authorization_code (validates PKCE code_verifier via constant-time compare, issues JWT + refresh token) and grant_type=refresh_token (rotates refresh token, issues new JWT)
-- [ ] Implement `HandleRegister` (POST `/oauth/register`) - dynamic client registration per RFC 7591, generates client_id via uuid, stores client
-- [ ] Write integration tests covering the full OAuth flow: register -> authorize -> callback -> token exchange -> refresh
-- [ ] Run project test suite - must pass before task 7
+- [x] Define `Handler` struct with DI-injected dependencies (`HandlerParams` with `fx.In`): Store, AllowedUsers, GitHubClientID, GitHubClientSecret, JWTSecret, Issuer, AuthorizationServerMetadata
+- [x] Implement `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`) - serves AS metadata JSON
+- [x] Implement `HandleAuthorize` (GET `/oauth/authorize`) - validates PKCE params (response_type=code, code_challenge, code_challenge_method=S256, client_id, redirect_uri, state, scope), generates HMAC-signed state containing original params, redirects to GitHub OAuth authorize URL
+- [x] Implement `HandleCallback` (GET `/oauth/callback`) - validates HMAC state, exchanges GitHub code for access token, fetches GitHub user, checks allowlist, generates auth code, stores it, redirects to client's redirect_uri with code and state
+- [x] Implement `HandleToken` (POST `/oauth/token`) - handles grant_type=authorization_code (validates PKCE code_verifier via constant-time compare, issues JWT + refresh token) and grant_type=refresh_token (rotates refresh token, issues new JWT)
+- [x] Implement `HandleRegister` (POST `/oauth/register`) - dynamic client registration per RFC 7591, generates client_id via uuid, stores client
+- [x] Write integration tests covering the full OAuth flow: register -> authorize -> callback -> token exchange -> refresh
+- [x] Run project test suite - must pass before task 7
 
 ### Task 7: Auth DI module and wiring
 

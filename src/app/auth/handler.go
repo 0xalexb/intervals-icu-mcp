@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	authCodeTTL       = 10 * time.Minute
-	accessTokenTTL    = 1 * time.Hour
-	refreshTokenTTL   = 30 * 24 * time.Hour
-	stateNonceLength  = 16
-	authCodeLength    = 32
+	authCodeTTL        = 10 * time.Minute
+	accessTokenTTL     = 1 * time.Hour
+	refreshTokenTTL    = 30 * 24 * time.Hour
+	stateNonceLength   = 16
+	authCodeLength     = 32
+	signedStateParts   = 2
 	githubAuthorizeURL = "https://github.com/login/oauth/authorize"
 )
 
@@ -81,6 +82,17 @@ type authorizeState struct {
 	Nonce               string `json:"nonce"`
 }
 
+// oauthValidationError holds an OAuth error suitable for writing to the response.
+type oauthValidationError struct {
+	code        string
+	description string
+	status      int
+}
+
+func (e *oauthValidationError) Error() string {
+	return e.description
+}
+
 // HandleAuthServerMetadata serves the OAuth 2.0 Authorization Server Metadata
 // at GET /.well-known/oauth-authorization-server.
 func (h *Handler) HandleAuthServerMetadata(w http.ResponseWriter, _ *http.Request) {
@@ -95,66 +107,24 @@ func (h *Handler) HandleAuthServerMetadata(w http.ResponseWriter, _ *http.Reques
 // generates an HMAC-signed state containing the original params, and redirects
 // to GitHub's OAuth authorize endpoint.
 func (h *Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
+	authState, valErr := validateAuthorizeParams(r.URL.Query())
+	if valErr != nil {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
 
-	responseType := q.Get("response_type")
-	if responseType != "code" {
-		writeOAuthError(w, "unsupported_response_type", "response_type must be 'code'", http.StatusBadRequest)
 		return
 	}
 
-	clientID := q.Get("client_id")
-	if clientID == "" {
-		writeOAuthError(w, "invalid_request", "client_id is required", http.StatusBadRequest)
-		return
-	}
-
-	redirectURI := q.Get("redirect_uri")
-	if redirectURI == "" {
-		writeOAuthError(w, "invalid_request", "redirect_uri is required", http.StatusBadRequest)
-		return
-	}
-
-	codeChallenge := q.Get("code_challenge")
-	if codeChallenge == "" {
-		writeOAuthError(w, "invalid_request", "code_challenge is required (PKCE mandatory)", http.StatusBadRequest)
-		return
-	}
-
-	codeChallengeMethod := q.Get("code_challenge_method")
-	if codeChallengeMethod != "S256" {
-		writeOAuthError(w, "invalid_request", "code_challenge_method must be 'S256'", http.StatusBadRequest)
-		return
-	}
-
-	state := q.Get("state")
-	scope := q.Get("scope")
-
-	nonce, err := generateRandomString(stateNonceLength)
+	signedState, err := h.signState(authState)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
 
-	as := authorizeState{
-		ClientID:            clientID,
-		RedirectURI:         redirectURI,
-		CodeChallenge:       codeChallenge,
-		CodeChallengeMethod: codeChallengeMethod,
-		OriginalState:       state,
-		Scope:               scope,
-		Nonce:               nonce,
-	}
-
-	signedState, err := h.signState(as)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	ghURL, err := url.Parse(githubAuthorizeURL)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -169,88 +139,169 @@ func (h *Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, ghURL.String(), http.StatusFound)
 }
 
+func validateAuthorizeParams(query url.Values) (authorizeState, *oauthValidationError) {
+	if query.Get("response_type") != "code" {
+		return authorizeState{}, &oauthValidationError{
+			"unsupported_response_type", "response_type must be 'code'", http.StatusBadRequest,
+		}
+	}
+
+	clientID := query.Get("client_id")
+	if clientID == "" {
+		return authorizeState{}, &oauthValidationError{
+			"invalid_request", "client_id is required", http.StatusBadRequest,
+		}
+	}
+
+	redirectURI := query.Get("redirect_uri")
+	if redirectURI == "" {
+		return authorizeState{}, &oauthValidationError{
+			"invalid_request", "redirect_uri is required", http.StatusBadRequest,
+		}
+	}
+
+	codeChallenge := query.Get("code_challenge")
+	if codeChallenge == "" {
+		return authorizeState{}, &oauthValidationError{
+			"invalid_request", "code_challenge is required (PKCE mandatory)", http.StatusBadRequest,
+		}
+	}
+
+	if query.Get("code_challenge_method") != "S256" {
+		return authorizeState{}, &oauthValidationError{
+			"invalid_request", "code_challenge_method must be 'S256'", http.StatusBadRequest,
+		}
+	}
+
+	nonce, err := generateRandomString(stateNonceLength)
+	if err != nil {
+		return authorizeState{}, &oauthValidationError{
+			"server_error", "internal error", http.StatusInternalServerError,
+		}
+	}
+
+	return authorizeState{
+		ClientID:            clientID,
+		RedirectURI:         redirectURI,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+		OriginalState:       query.Get("state"),
+		Scope:               query.Get("scope"),
+		Nonce:               nonce,
+	}, nil
+}
+
 // HandleCallback handles GET /oauth/callback. It validates the HMAC-signed state,
 // exchanges the GitHub authorization code for an access token, fetches the GitHub user,
 // checks the allowlist, generates an auth code, and redirects back to the client.
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-
-	if errParam := q.Get("error"); errParam != "" {
-		desc := q.Get("error_description")
-		writeOAuthError(w, errParam, desc, http.StatusBadRequest)
+	code, authState, valErr := h.validateCallbackParams(r.URL.Query())
+	if valErr != nil {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
 
 		return
 	}
 
-	code := q.Get("code")
-	if code == "" {
-		writeOAuthError(w, "invalid_request", "missing code parameter", http.StatusBadRequest)
-		return
-	}
+	ghUser, ghErr := h.resolveGitHubUser(r, code)
+	if ghErr != nil {
+		writeOAuthError(w, ghErr.code, ghErr.description, ghErr.status)
 
-	signedState := q.Get("state")
-	if signedState == "" {
-		writeOAuthError(w, "invalid_request", "missing state parameter", http.StatusBadRequest)
-		return
-	}
-
-	as, err := h.verifyState(signedState)
-	if err != nil {
-		writeOAuthError(w, "invalid_request", "invalid or tampered state", http.StatusBadRequest)
-		return
-	}
-
-	ghToken, err := h.ghClient.ExchangeGitHubCode(r.Context(), h.ghClientID, h.ghClientSecret, code)
-	if err != nil {
-		writeOAuthError(w, "server_error", "failed to exchange GitHub code", http.StatusInternalServerError)
-		return
-	}
-
-	ghUser, err := h.ghClient.GetGitHubUser(r.Context(), ghToken)
-	if err != nil {
-		writeOAuthError(w, "server_error", "failed to fetch GitHub user", http.StatusInternalServerError)
-		return
-	}
-
-	if len(h.allowedUsers) > 0 && !h.allowedUsers.Contains(ghUser.Login) {
-		writeOAuthError(w, "access_denied", "user not authorized", http.StatusForbidden)
 		return
 	}
 
 	authCode, err := generateRandomString(authCodeLength)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
-	scopes := parseScopes(as.Scope)
-
-	h.store.SaveAuthCode(&AuthCode{
+	h.store.SaveAuthCode(&Code{
 		Code:                authCode,
-		ClientID:            as.ClientID,
-		RedirectURI:         as.RedirectURI,
-		CodeChallenge:       as.CodeChallenge,
-		CodeChallengeMethod: as.CodeChallengeMethod,
-		GitHubUsername:       ghUser.Login,
-		Scopes:              scopes,
+		ClientID:            authState.ClientID,
+		RedirectURI:         authState.RedirectURI,
+		CodeChallenge:       authState.CodeChallenge,
+		CodeChallengeMethod: authState.CodeChallengeMethod,
+		GitHubUsername:      ghUser.Login,
+		Scopes:              parseScopes(authState.Scope),
 		ExpiresAt:           time.Now().Add(authCodeTTL),
 	})
 
-	redirectURL, err := url.Parse(as.RedirectURI)
+	redirectURL, err := url.Parse(authState.RedirectURI)
 	if err != nil {
 		http.Error(w, "invalid redirect URI", http.StatusInternalServerError)
+
 		return
 	}
 
-	rq := redirectURL.Query()
-	rq.Set("code", authCode)
+	redirectQuery := redirectURL.Query()
+	redirectQuery.Set("code", authCode)
 
-	if as.OriginalState != "" {
-		rq.Set("state", as.OriginalState)
+	if authState.OriginalState != "" {
+		redirectQuery.Set("state", authState.OriginalState)
 	}
 
-	redirectURL.RawQuery = rq.Encode()
+	redirectURL.RawQuery = redirectQuery.Encode()
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+}
+
+func (h *Handler) validateCallbackParams(
+	query url.Values,
+) (string, authorizeState, *oauthValidationError) {
+	if errParam := query.Get("error"); errParam != "" {
+		return "", authorizeState{}, &oauthValidationError{
+			errParam, query.Get("error_description"), http.StatusBadRequest,
+		}
+	}
+
+	code := query.Get("code")
+	if code == "" {
+		return "", authorizeState{}, &oauthValidationError{
+			"invalid_request", "missing code parameter", http.StatusBadRequest,
+		}
+	}
+
+	signedState := query.Get("state")
+	if signedState == "" {
+		return "", authorizeState{}, &oauthValidationError{
+			"invalid_request", "missing state parameter", http.StatusBadRequest,
+		}
+	}
+
+	authState, err := h.verifyState(signedState)
+	if err != nil {
+		return "", authorizeState{}, &oauthValidationError{
+			"invalid_request", "invalid or tampered state", http.StatusBadRequest,
+		}
+	}
+
+	return code, authState, nil
+}
+
+func (h *Handler) resolveGitHubUser(
+	r *http.Request, code string,
+) (*GitHubUser, *oauthValidationError) {
+	ghToken, err := h.ghClient.ExchangeGitHubCode(r.Context(), h.ghClientID, h.ghClientSecret, code)
+	if err != nil {
+		return nil, &oauthValidationError{
+			"server_error", "failed to exchange GitHub code", http.StatusInternalServerError,
+		}
+	}
+
+	ghUser, err := h.ghClient.GetGitHubUser(r.Context(), ghToken)
+	if err != nil {
+		return nil, &oauthValidationError{
+			"server_error", "failed to fetch GitHub user", http.StatusInternalServerError,
+		}
+	}
+
+	if len(h.allowedUsers) > 0 && !h.allowedUsers.Contains(ghUser.Login) {
+		return nil, &oauthValidationError{
+			"access_denied", "user not authorized", http.StatusForbidden,
+		}
+	}
+
+	return ghUser, nil
 }
 
 // HandleToken handles POST /oauth/token. It supports grant_type=authorization_code
@@ -258,11 +309,13 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeOAuthError(w, "invalid_request", "method must be POST", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
 		writeOAuthError(w, "invalid_request", "malformed form body", http.StatusBadRequest)
+
 		return
 	}
 
@@ -274,103 +327,112 @@ func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
 	case "refresh_token":
 		h.handleRefreshTokenGrant(w, r)
 	default:
-		writeOAuthError(w, "unsupported_grant_type", "grant_type must be 'authorization_code' or 'refresh_token'", http.StatusBadRequest)
+		writeOAuthError(w, "unsupported_grant_type",
+			"grant_type must be 'authorization_code' or 'refresh_token'",
+			http.StatusBadRequest)
 	}
 }
 
 func (h *Handler) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request) {
+	authCode, valErr := h.validateAuthCodeGrant(r)
+	if valErr != nil {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
+
+		return
+	}
+
+	h.issueTokenPair(w, authCode.GitHubUsername, authCode.ClientID, authCode.Scopes)
+}
+
+func (h *Handler) validateAuthCodeGrant(r *http.Request) (*Code, *oauthValidationError) {
 	code := r.FormValue("code")
 	if code == "" {
-		writeOAuthError(w, "invalid_request", "code is required", http.StatusBadRequest)
-		return
+		return nil, &oauthValidationError{
+			"invalid_request", "code is required", http.StatusBadRequest,
+		}
 	}
 
 	codeVerifier := r.FormValue("code_verifier")
 	if codeVerifier == "" {
-		writeOAuthError(w, "invalid_request", "code_verifier is required (PKCE mandatory)", http.StatusBadRequest)
-		return
+		return nil, &oauthValidationError{
+			"invalid_request", "code_verifier is required (PKCE mandatory)", http.StatusBadRequest,
+		}
 	}
 
-	ac, err := h.store.ConsumeAuthCode(code, time.Now())
+	authCode, err := h.store.ConsumeAuthCode(code, time.Now())
 	if err != nil {
-		writeOAuthError(w, "invalid_grant", "authorization code is invalid or expired", http.StatusBadRequest)
-		return
+		return nil, &oauthValidationError{
+			"invalid_grant", "authorization code is invalid or expired", http.StatusBadRequest,
+		}
 	}
 
-	if !verifyCodeChallenge(ac.CodeChallenge, codeVerifier) {
-		writeOAuthError(w, "invalid_grant", "code_verifier does not match code_challenge", http.StatusBadRequest)
-		return
+	if !verifyCodeChallenge(authCode.CodeChallenge, codeVerifier) {
+		return nil, &oauthValidationError{
+			"invalid_grant", "code_verifier does not match code_challenge", http.StatusBadRequest,
+		}
 	}
 
 	clientID := r.FormValue("client_id")
-	if clientID != "" && clientID != ac.ClientID {
-		writeOAuthError(w, "invalid_grant", "client_id mismatch", http.StatusBadRequest)
-		return
+	if clientID != "" && clientID != authCode.ClientID {
+		return nil, &oauthValidationError{
+			"invalid_grant", "client_id mismatch", http.StatusBadRequest,
+		}
 	}
 
 	redirectURI := r.FormValue("redirect_uri")
-	if redirectURI != "" && redirectURI != ac.RedirectURI {
-		writeOAuthError(w, "invalid_grant", "redirect_uri mismatch", http.StatusBadRequest)
-		return
+	if redirectURI != "" && redirectURI != authCode.RedirectURI {
+		return nil, &oauthValidationError{
+			"invalid_grant", "redirect_uri mismatch", http.StatusBadRequest,
+		}
 	}
 
-	accessToken, err := IssueAccessToken(h.jwtSecret, h.issuer, accessTokenTTL, ac.GitHubUsername, ac.Scopes)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	refreshToken, err := IssueRefreshToken()
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	h.store.SaveRefreshToken(&RefreshToken{
-		Token:         refreshToken,
-		ClientID:      ac.ClientID,
-		GitHubUsername: ac.GitHubUsername,
-		Scopes:        ac.Scopes,
-		ExpiresAt:     time.Now().Add(refreshTokenTTL),
-	})
-
-	writeTokenResponse(w, accessToken, refreshToken, int(accessTokenTTL.Seconds()))
+	return authCode, nil
 }
 
 func (h *Handler) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request) {
 	tokenValue := r.FormValue("refresh_token")
 	if tokenValue == "" {
 		writeOAuthError(w, "invalid_request", "refresh_token is required", http.StatusBadRequest)
+
 		return
 	}
 
-	rt, err := h.store.ConsumeRefreshToken(tokenValue, time.Now())
+	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, time.Now())
 	if err != nil {
 		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
+
 		return
 	}
 
-	accessToken, err := IssueAccessToken(h.jwtSecret, h.issuer, accessTokenTTL, rt.GitHubUsername, rt.Scopes)
+	h.issueTokenPair(w, refreshTok.GitHubUsername, refreshTok.ClientID, refreshTok.Scopes)
+}
+
+func (h *Handler) issueTokenPair(
+	w http.ResponseWriter, username, clientID string, scopes []string,
+) {
+	accessToken, err := IssueAccessToken(h.jwtSecret, h.issuer, accessTokenTTL, username, scopes)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
-	newRefreshToken, err := IssueRefreshToken()
+	refreshToken, err := IssueRefreshToken()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
 	h.store.SaveRefreshToken(&RefreshToken{
-		Token:         newRefreshToken,
-		ClientID:      rt.ClientID,
-		GitHubUsername: rt.GitHubUsername,
-		Scopes:        rt.Scopes,
+		Token:         refreshToken,
+		ClientID:      clientID,
+		GitHubUsername: username,
+		Scopes:        scopes,
 		ExpiresAt:     time.Now().Add(refreshTokenTTL),
 	})
 
-	writeTokenResponse(w, accessToken, newRefreshToken, int(accessTokenTTL.Seconds()))
+	writeTokenResponse(w, accessToken, refreshToken, int(accessTokenTTL.Seconds()))
 }
 
 // registrationRequest represents the JSON body of a dynamic client registration request (RFC 7591).
@@ -392,26 +454,21 @@ type registrationResponse struct {
 func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeOAuthError(w, "invalid_request", "method must be POST", http.StatusMethodNotAllowed)
+
 		return
 	}
 
 	var req registrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeOAuthError(w, "invalid_client_metadata", "malformed JSON body", http.StatusBadRequest)
+
 		return
 	}
 
-	if len(req.RedirectURIs) == 0 {
-		writeOAuthError(w, "invalid_client_metadata", "redirect_uris is required", http.StatusBadRequest)
-		return
-	}
+	if err := validateRedirectURIs(req.RedirectURIs); err != "" {
+		writeOAuthError(w, "invalid_client_metadata", err, http.StatusBadRequest)
 
-	for _, uri := range req.RedirectURIs {
-		if _, err := url.ParseRequestURI(uri); err != nil {
-			writeOAuthError(w, "invalid_client_metadata",
-				fmt.Sprintf("invalid redirect_uri: %s", uri), http.StatusBadRequest)
-			return
-		}
+		return
 	}
 
 	grantTypes := req.GrantTypes
@@ -422,6 +479,7 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	clientID, err := uuid.NewV4()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -445,13 +503,31 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// validateRedirectURIs checks that redirect URIs are present and well-formed.
+// Returns an error message string, or empty string if valid.
+func validateRedirectURIs(uris []string) string {
+	if len(uris) == 0 {
+		return "redirect_uris is required"
+	}
+
+	for _, uri := range uris {
+		if _, err := url.ParseRequestURI(uri); err != nil {
+			return "invalid redirect_uri: " + uri
+		}
+	}
+
+	return ""
 }
 
 // signState creates an HMAC-SHA256 signed state string from the authorize parameters.
-// Format: base64url(json) + "." + base64url(hmac)
-func (h *Handler) signState(as authorizeState) (string, error) {
-	data, err := json.Marshal(as)
+// Format: base64url(json) + "." + base64url(hmac).
+func (h *Handler) signState(authState authorizeState) (string, error) {
+	data, err := json.Marshal(authState)
 	if err != nil {
 		return "", fmt.Errorf("marshaling state: %w", err)
 	}
@@ -467,10 +543,9 @@ func (h *Handler) signState(as authorizeState) (string, error) {
 
 // verifyState validates the HMAC signature and unmarshals the authorize state.
 func (h *Handler) verifyState(signed string) (authorizeState, error) {
-	parts := strings.SplitN(signed, ".", 2)
+	parts := strings.SplitN(signed, ".", signedStateParts)
 
-	const expectedParts = 2
-	if len(parts) != expectedParts {
+	if len(parts) != signedStateParts {
 		return authorizeState{}, errInvalidState
 	}
 
@@ -495,19 +570,19 @@ func (h *Handler) verifyState(signed string) (authorizeState, error) {
 		return authorizeState{}, fmt.Errorf("%w: %w", errInvalidState, err)
 	}
 
-	var as authorizeState
-	if err := json.Unmarshal(data, &as); err != nil {
+	var authState authorizeState
+	if err := json.Unmarshal(data, &authState); err != nil {
 		return authorizeState{}, fmt.Errorf("%w: %w", errInvalidState, err)
 	}
 
-	return as, nil
+	return authState, nil
 }
 
 // verifyCodeChallenge performs S256 PKCE verification using constant-time comparison.
-// challenge = BASE64URL(SHA256(verifier))
+// challenge = BASE64URL(SHA256(verifier)).
 func verifyCodeChallenge(challenge, verifier string) bool {
-	h := sha256.Sum256([]byte(verifier))
-	computed := base64.RawURLEncoding.EncodeToString(h[:])
+	digest := sha256.Sum256([]byte(verifier))
+	computed := base64.RawURLEncoding.EncodeToString(digest[:])
 
 	return subtle.ConstantTimeCompare([]byte(computed), []byte(challenge)) == 1
 }
@@ -520,7 +595,9 @@ type tokenResponse struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
-func writeTokenResponse(w http.ResponseWriter, accessToken, refreshToken string, expiresIn int) {
+func writeTokenResponse(
+	w http.ResponseWriter, accessToken, refreshToken string, expiresIn int,
+) {
 	resp := tokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
@@ -532,7 +609,9 @@ func writeTokenResponse(w http.ResponseWriter, accessToken, refreshToken string,
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // oauthErrorResponse is the JSON error response per RFC 6749 Section 5.2.
@@ -545,10 +624,12 @@ func writeOAuthError(w http.ResponseWriter, errCode, description string, status 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	json.NewEncoder(w).Encode(oauthErrorResponse{
+	if err := json.NewEncoder(w).Encode(oauthErrorResponse{
 		Error:       errCode,
 		Description: description,
-	})
+	}); err != nil {
+		http.Error(w, "failed to encode error response", http.StatusInternalServerError)
+	}
 }
 
 func generateRandomString(length int) (string, error) {
@@ -570,9 +651,9 @@ func parseScopes(scope string) []string {
 	parts := strings.Fields(scope)
 	scopes := make([]string, 0, len(parts))
 
-	for _, p := range parts {
-		if p != "" {
-			scopes = append(scopes, p)
+	for _, part := range parts {
+		if part != "" {
+			scopes = append(scopes, part)
 		}
 	}
 

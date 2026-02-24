@@ -70,7 +70,8 @@ func (g *GitHubClient) ExchangeGitHubCode(
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", errGitHubTokenExchange, err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -117,7 +118,8 @@ func (g *GitHubClient) GetGitHubUser(ctx context.Context, accessToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errGitHubUserFetch, err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

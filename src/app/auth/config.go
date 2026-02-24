@@ -1,3 +1,4 @@
+// Package auth provides OAuth 2.1 authentication for the MCP server's streamable HTTP transport.
 package auth
 
 import (
@@ -27,8 +28,14 @@ type GitHubClientSecret string
 // injected from main.go via DI.
 type RawAllowedUsers string
 
-// JWTSecret is the HMAC-SHA256 signing key for JWT tokens.
+// RawJWTSecret is the raw CLI flag value for the JWT signing key, injected from main.go via DI.
+type RawJWTSecret string
+
+// JWTSecret is the validated HMAC-SHA256 signing key for JWT tokens.
 type JWTSecret string
+
+// RawIssuer is the raw CLI flag value for the issuer URL, injected from main.go via DI.
+type RawIssuer string
 
 // Issuer is the validated issuer URL for the OAuth authorization server.
 type Issuer string
@@ -66,7 +73,7 @@ func (u AllowedUsers) Contains(username string) bool {
 
 // NewValidatedIssuer validates that the issuer string is a URL with an http or https
 // scheme and a non-empty host.
-func NewValidatedIssuer(raw Issuer) (Issuer, error) {
+func NewValidatedIssuer(raw RawIssuer) (Issuer, error) {
 	parsed, err := url.Parse(string(raw))
 	if err != nil {
 		return "", fmt.Errorf("invalid issuer URL: %w", err)
@@ -80,15 +87,15 @@ func NewValidatedIssuer(raw Issuer) (Issuer, error) {
 		return "", errIssuerEmptyHost
 	}
 
-	return raw, nil
+	return Issuer(raw), nil
 }
 
 // NewJWTSecret validates or auto-generates a JWT signing secret.
 // If the input is empty, a cryptographically random 32-byte secret is generated
 // and returned as a base64url-encoded string.
-func NewJWTSecret(raw JWTSecret) (JWTSecret, error) {
+func NewJWTSecret(raw RawJWTSecret) (JWTSecret, error) {
 	if strings.TrimSpace(string(raw)) != "" {
-		return raw, nil
+		return JWTSecret(raw), nil
 	}
 
 	buf := make([]byte, jwtSecretLength)

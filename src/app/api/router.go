@@ -6,6 +6,11 @@ import (
 
 	"github.com/0xalexb/hjarta-di/listener/middleware"
 	"github.com/go-pkgz/routegroup"
+	"github.com/modelcontextprotocol/go-sdk/auth"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"go.uber.org/fx"
+
+	appauth "github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 )
 
 const (
@@ -15,9 +20,22 @@ const (
 	corsMaxAge         = 86400
 )
 
+// RouterParams holds the DI-injected dependencies for the HTTP router.
+type RouterParams struct {
+	fx.In
+
+	MCPHandler                  http.Handler                        `name:"mcp-raw"`
+	Origins                     AllowedOrigins
+	AuthHandler                 *appauth.Handler
+	AuthorizationServerMetadata *appauth.AuthorizationServerMetadata
+	ProtectedResourceMetadata   *oauthex.ProtectedResourceMetadata
+	TokenVerifier               auth.TokenVerifier
+	Issuer                      appauth.Issuer
+}
+
 // NewRouter constructs an HTTP router that mounts the MCP handler at /mcp
-// with the full middleware stack applied.
-func NewRouter(mcpHandler http.Handler, origins AllowedOrigins) http.Handler {
+// with the full middleware stack applied, and registers OAuth endpoints.
+func NewRouter(params RouterParams) http.Handler {
 	router := routegroup.New(http.NewServeMux())
 
 	router.Use(
@@ -27,7 +45,7 @@ func NewRouter(mcpHandler http.Handler, origins AllowedOrigins) http.Handler {
 		middleware.RateLimit(rateLimitRate, rateLimitBurst),
 		middleware.MaxRequestSize(maxRequestBodySize),
 		middleware.CORS(
-			middleware.WithAllowedOrigins(origins.Hostnames()...),
+			middleware.WithAllowedOrigins(params.Origins.Hostnames()...),
 			middleware.WithAllowedMethods("GET", "POST", "DELETE", "OPTIONS"),
 			middleware.WithAllowedHeaders(
 				"Content-Type", "Authorization", "Mcp-Session-Id",
@@ -39,8 +57,30 @@ func NewRouter(mcpHandler http.Handler, origins AllowedOrigins) http.Handler {
 		middleware.Compress(),
 	)
 
-	router.Handle("/mcp", mcpHandler)
-	router.Handle("/mcp/", mcpHandler)
+	resourceMetadataURL := string(params.Issuer) + "/.well-known/oauth-protected-resource"
+
+	router.Handle("GET /.well-known/oauth-protected-resource",
+		auth.ProtectedResourceMetadataHandler(params.ProtectedResourceMetadata))
+	router.Handle("GET /.well-known/oauth-authorization-server",
+		http.HandlerFunc(params.AuthHandler.HandleAuthServerMetadata))
+	router.Handle("GET /oauth/authorize",
+		http.HandlerFunc(params.AuthHandler.HandleAuthorize))
+	router.Handle("GET /oauth/callback",
+		http.HandlerFunc(params.AuthHandler.HandleCallback))
+	router.Handle("POST /oauth/token",
+		http.HandlerFunc(params.AuthHandler.HandleToken))
+	router.Handle("POST /oauth/register",
+		http.HandlerFunc(params.AuthHandler.HandleRegister))
+
+	bearerMiddleware := auth.RequireBearerToken(
+		params.TokenVerifier,
+		&auth.RequireBearerTokenOptions{
+			ResourceMetadataURL: resourceMetadataURL,
+		},
+	)
+
+	router.Handle("/mcp", bearerMiddleware(params.MCPHandler))
+	router.Handle("/mcp/", bearerMiddleware(params.MCPHandler))
 
 	return router
 }

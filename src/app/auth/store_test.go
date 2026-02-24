@@ -11,7 +11,7 @@ func TestSaveAuthCode_And_ConsumeAuthCode(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	code := &AuthCode{
+	code := &Code{
 		Code:                "test-code",
 		ClientID:            "client-1",
 		RedirectURI:         "http://localhost/callback",
@@ -48,7 +48,7 @@ func TestConsumeAuthCode_OneTimeUse(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	code := &AuthCode{
+	code := &Code{
 		Code:      "one-time-code",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(10 * time.Minute),
@@ -77,7 +77,7 @@ func TestConsumeAuthCode_Expired(t *testing.T) {
 	store := NewStore()
 	past := time.Now().Add(-10 * time.Minute)
 
-	code := &AuthCode{
+	code := &Code{
 		Code:      "expired-code",
 		ClientID:  "client-1",
 		ExpiresAt: past,
@@ -101,7 +101,7 @@ func TestConsumeAuthCode_ExpiredCodeIsDeletedFromStore(t *testing.T) {
 	store := NewStore()
 	past := time.Now().Add(-10 * time.Minute)
 
-	code := &AuthCode{
+	code := &Code{
 		Code:      "expired-deleted-code",
 		ClientID:  "client-1",
 		ExpiresAt: past,

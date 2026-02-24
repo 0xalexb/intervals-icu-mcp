@@ -23,12 +23,21 @@ linters:
           - errorlint
           - errcheck
           - tagalign
+          - forcetypeassert
       - path: src/app/tools/
         linters:
           - dupl
           - tagliatelle
       - path: src/app/api/
         text: "avoid meaningless package names"
+      - path: src/app/auth/
+        linters:
+          - exhaustruct
+          - tagliatelle
+          - gosec
+          - varnamelen
+          - noinlineerr
+          - funcorder
       - path: src/app/
         linters:
           - exhaustruct
@@ -51,6 +60,10 @@ linters:
             - github.com/modelcontextprotocol
             # HTTP routing
             - github.com/go-pkgz/routegroup
+            # JWT
+            - github.com/golang-jwt/jwt
+            # UUID
+            - github.com/gofrs/uuid
         tests:
           list-mode: strict
           files:
@@ -71,3 +84,7 @@ linters:
             - github.com/goccy/go-yaml
             # HTTP routing
             - github.com/go-pkgz/routegroup
+            # JWT
+            - github.com/golang-jwt/jwt
+            # UUID
+            - github.com/gofrs/uuid

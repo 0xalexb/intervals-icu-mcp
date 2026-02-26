@@ -7,8 +7,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/0xalexb/intervals-icu-mcp/src/app/api"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	ghclient "github.com/0xalexb/intervals-icu-mcp/src/app/clients/github"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/tools"
 )
 
@@ -17,6 +19,8 @@ var Module = fx.Module("app", //nolint:gochecknoglobals // fx.Module as package 
 	api.Module,
 	auth.Module,
 	client.Module,
+	ghclient.Module,
+	rest.Module,
 	tools.Module,
 	fx.Provide(fx.Annotate(NewServer, fx.ParamTags(``, `group:"mcp_tools"`))),
 	fx.Provide(fx.Annotate(

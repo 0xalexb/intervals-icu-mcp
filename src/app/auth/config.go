@@ -11,7 +11,12 @@ import (
 	"strings"
 )
 
-const jwtSecretLength = 32
+const (
+	jwtSecretLength = 32
+
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
 
 var (
 	errIssuerMissingScheme    = errors.New("issuer must have http or https scheme")

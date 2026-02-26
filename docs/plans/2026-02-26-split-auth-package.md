@@ -68,13 +68,13 @@ Refactor the `src/app/auth/` package by extracting OAuth HTTP handlers into `src
 - Delete: `src/app/auth/github.go`
 - Delete: `src/app/auth/github_test.go`
 
-- [ ] Add `schemeHTTP` and `schemeHTTPS` constants to `src/app/auth/config.go` (currently defined in `handler.go` and used by `config.go`'s `NewValidatedIssuer`)
-- [ ] Update `src/app/auth/di.go`: remove `fx.Provide(NewHandler)` and `fx.Provide(NewGitHubClient)` from the Module
-- [ ] Update `src/app/api/router.go`: change import from `appauth.Handler` to `rest.Handler` (import `"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"`), update `RouterParams.AuthHandler` type to `*rest.Handler`
-- [ ] Update `src/app/api/router_test.go`: change handler construction to use `rest.NewHandler(rest.HandlerParams{...})`, import `rest` package and `clients/github` package
-- [ ] Update `src/app/di.go`: add imports for `ghclient "github.com/0xalexb/intervals-icu-mcp/src/app/clients/github"` and `"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"`, add `ghclient.Module` and `rest.Module` to the Module composition
-- [ ] Delete `src/app/auth/handler.go`, `src/app/auth/handler_test.go`, `src/app/auth/github.go`, `src/app/auth/github_test.go`
-- [ ] Run `go test ./src/...` - must pass before task 4
+- [x] Add `schemeHTTP` and `schemeHTTPS` constants to `src/app/auth/config.go` (currently defined in `handler.go` and used by `config.go`'s `NewValidatedIssuer`)
+- [x] Update `src/app/auth/di.go`: remove `fx.Provide(NewHandler)` and `fx.Provide(NewGitHubClient)` from the Module
+- [x] Update `src/app/api/router.go`: change import from `appauth.Handler` to `rest.Handler` (import `"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"`), update `RouterParams.AuthHandler` type to `*rest.Handler`
+- [x] Update `src/app/api/router_test.go`: change handler construction to use `rest.NewHandler(rest.HandlerParams{...})`, import `rest` package and `clients/github` package
+- [x] Update `src/app/di.go`: add imports for `ghclient "github.com/0xalexb/intervals-icu-mcp/src/app/clients/github"` and `"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"`, add `ghclient.Module` and `rest.Module` to the Module composition
+- [x] Delete `src/app/auth/handler.go`, `src/app/auth/handler_test.go`, `src/app/auth/github.go`, `src/app/auth/github_test.go`
+- [x] Run `go test ./src/...` - must pass before task 4
 
 ### Task 4: Update linter config
 

@@ -81,10 +81,10 @@ Refactor the `src/app/auth/` package by extracting OAuth HTTP handlers into `src
 **Files:**
 - Modify: `.golangci.yml`
 
-- [ ] Add linter exclusion for `src/app/api/rest/` matching `src/app/auth/` exclusions: `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, `funcorder`
-- [ ] Add linter exclusion for `src/app/clients/github/`: `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`
-- [ ] Add text exclusion "avoid meaningless package names" for `src/app/clients/` path (package name `github` is intentional)
-- [ ] Run `go test ./src/...` - confirm tests still pass
+- [x] Add linter exclusion for `src/app/api/rest/` matching `src/app/auth/` exclusions: `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, `funcorder`
+- [x] Add linter exclusion for `src/app/clients/github/`: `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`
+- [x] Add text exclusion "avoid meaningless package names" for `src/app/clients/` path (package name `github` is intentional)
+- [x] Run `go test ./src/...` - confirm tests still pass
 
 ### Task 5: Verify acceptance criteria
 

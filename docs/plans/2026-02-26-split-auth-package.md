@@ -50,10 +50,10 @@ Refactor the `src/app/auth/` package by extracting OAuth HTTP handlers into `src
 - Create: `src/app/api/rest/di.go`
 - Create: `src/app/api/rest/handler_test.go`
 
-- [ ] Create `src/app/api/rest/handler.go` with `Handler`, `HandlerParams`, and all Handle* methods plus private helpers. `HandlerParams` references types from `auth` (`*auth.Store`, `auth.AllowedUsers`, `auth.GitHubClientID`, `auth.GitHubClientSecret`, `auth.JWTSecret`, `auth.Issuer`, `*auth.AuthorizationServerMetadata`) and `clients/github` (`*github.GitHubClient`). Where handler calls `GitHubClient.ExchangeGitHubCode`, cast named types to `string`: `string(h.ghClientID)`. Where handler calls `auth.IssueAccessToken`, `auth.IssueRefreshToken`, `auth.NewAuthorizationServerMetadata` - use qualified imports.
-- [ ] Create `src/app/api/rest/di.go` with `var Module = fx.Module("rest", fx.Provide(NewHandler))`.
-- [ ] Create `src/app/api/rest/handler_test.go` - adapt tests from `auth/handler_test.go`, updating type references to use `auth.*` and `github.NewTestClient()` for the GitHub client. Use `auth.NewStore()`, `auth.AllowedUsers{}`, etc.
-- [ ] Run `go test ./src/app/api/rest/...` - must pass before task 3
+- [x] Create `src/app/api/rest/handler.go` with `Handler`, `HandlerParams`, and all Handle* methods plus private helpers. `HandlerParams` references types from `auth` (`*auth.Store`, `auth.AllowedUsers`, `auth.GitHubClientID`, `auth.GitHubClientSecret`, `auth.JWTSecret`, `auth.Issuer`, `*auth.AuthorizationServerMetadata`) and `clients/github` (`*github.GitHubClient`). Where handler calls `GitHubClient.ExchangeGitHubCode`, cast named types to `string`: `string(h.ghClientID)`. Where handler calls `auth.IssueAccessToken`, `auth.IssueRefreshToken`, `auth.NewAuthorizationServerMetadata` - use qualified imports.
+- [x] Create `src/app/api/rest/di.go` with `var Module = fx.Module("rest", fx.Provide(NewHandler))`.
+- [x] Create `src/app/api/rest/handler_test.go` - adapt tests from `auth/handler_test.go`, updating type references to use `auth.*` and `github.NewTestClient()` for the GitHub client. Use `auth.NewStore()`, `auth.AllowedUsers{}`, etc.
+- [x] Run `go test ./src/app/api/rest/...` - must pass before task 3
 
 ### Task 3: Rewire DI, update imports, and remove old files
 

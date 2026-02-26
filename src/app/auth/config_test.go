@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -227,6 +228,42 @@ func TestNewValidatedIssuer_TrailingSlashStripped(t *testing.T) {
 
 	if issuer != "http://localhost:8080" {
 		t.Fatalf("expected trailing slash stripped, got %q", issuer)
+	}
+}
+
+func TestNewValidatedIssuer_RejectsPath(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewValidatedIssuer("https://example.com/path")
+	if !errors.Is(err, errIssuerHasPath) {
+		t.Fatalf("expected errIssuerHasPath, got %v", err)
+	}
+}
+
+func TestNewValidatedIssuer_RejectsQuery(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewValidatedIssuer("https://example.com?foo=bar")
+	if !errors.Is(err, errIssuerHasQuery) {
+		t.Fatalf("expected errIssuerHasQuery, got %v", err)
+	}
+}
+
+func TestNewValidatedIssuer_RejectsFragment(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewValidatedIssuer("https://example.com#frag")
+	if !errors.Is(err, errIssuerHasFragment) {
+		t.Fatalf("expected errIssuerHasFragment, got %v", err)
+	}
+}
+
+func TestNewJWTSecret_TooShort(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewJWTSecret("short")
+	if !errors.Is(err, errJWTSecretTooShort) {
+		t.Fatalf("expected errJWTSecretTooShort, got %v", err)
 	}
 }
 

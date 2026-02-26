@@ -8,7 +8,7 @@ import (
 
 const (
 	cleanupInterval = 5 * time.Minute
-	maxClients      = 10000
+	maxClients      = 1000
 	clientTTL       = 30 * 24 * time.Hour
 )
 
@@ -101,6 +101,12 @@ func (s *Store) evictExpired(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.evictExpiredLocked(now)
+}
+
+// evictExpiredLocked is the lock-free version of evictExpired.
+// The caller must hold s.mu.
+func (s *Store) evictExpiredLocked(now time.Time) {
 	for key, ac := range s.authCodes {
 		if now.After(ac.ExpiresAt) {
 			delete(s.authCodes, key)
@@ -156,33 +162,21 @@ func (s *Store) SaveRefreshToken(token *RefreshToken) {
 	s.refreshTokens[token.Token] = token
 }
 
-// GetRefreshToken retrieves a refresh token without consuming it.
-// Use this to validate token properties (e.g., client_id) before consuming.
-func (s *Store) GetRefreshToken(token string, now time.Time) (*RefreshToken, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// ConsumeRefreshToken retrieves and deletes a refresh token (rotation).
+// The caller is responsible for saving a new refresh token after consuming the old one.
+// Returns an error if the token is not found, belongs to a different client, or has expired.
+// The clientID check happens before deletion to prevent an attacker from revoking
+// another client's refresh token by presenting it with a mismatched client_id.
+func (s *Store) ConsumeRefreshToken(token, clientID string, now time.Time) (*RefreshToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	rt, ok := s.refreshTokens[token]
 	if !ok {
 		return nil, errRefreshTokenNotFound
 	}
 
-	if now.After(rt.ExpiresAt) {
-		return nil, errRefreshTokenExpired
-	}
-
-	return rt, nil
-}
-
-// ConsumeRefreshToken retrieves and deletes a refresh token (rotation).
-// The caller is responsible for saving a new refresh token after consuming the old one.
-// Returns an error if the token is not found or has expired.
-func (s *Store) ConsumeRefreshToken(token string, now time.Time) (*RefreshToken, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	rt, ok := s.refreshTokens[token]
-	if !ok {
+	if rt.ClientID != clientID {
 		return nil, errRefreshTokenNotFound
 	}
 
@@ -196,21 +190,31 @@ func (s *Store) ConsumeRefreshToken(token string, now time.Time) (*RefreshToken,
 }
 
 // SaveClient stores a registered client. Returns an error if the maximum number
-// of registered clients has been reached.
+// of registered clients has been reached. When the cap is hit, expired clients
+// are evicted first before rejecting the request.
 func (s *Store) SaveClient(client *RegisteredClient) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if len(s.clients) >= maxClients {
+		s.evictExpiredLocked(time.Now())
+	}
+
+	if len(s.clients) >= maxClients {
 		return errMaxClientsReached
 	}
 
-	s.clients[client.ClientID] = client
+	cp := *client
+	cp.RedirectURIs = cloneStrings(client.RedirectURIs)
+	cp.GrantTypes = cloneStrings(client.GrantTypes)
+
+	s.clients[cp.ClientID] = &cp
 
 	return nil
 }
 
 // GetClient retrieves a registered client by its client ID.
+// Returns a deep copy to prevent callers from mutating store data.
 // Returns an error if the client is not found.
 func (s *Store) GetClient(clientID string) (*RegisteredClient, error) {
 	s.mu.RLock()
@@ -221,5 +225,20 @@ func (s *Store) GetClient(clientID string) (*RegisteredClient, error) {
 		return nil, errClientNotFound
 	}
 
-	return client, nil
+	cp := *client
+	cp.RedirectURIs = cloneStrings(client.RedirectURIs)
+	cp.GrantTypes = cloneStrings(client.GrantTypes)
+
+	return &cp, nil
+}
+
+func cloneStrings(src []string) []string {
+	if src == nil {
+		return nil
+	}
+
+	dst := make([]string, len(src))
+	copy(dst, src)
+
+	return dst
 }

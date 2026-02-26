@@ -18,6 +18,7 @@ const (
 	defaultUserURL        = "https://api.github.com/user"
 	httpTimeout           = 10 * time.Second
 	maxGitHubResponseSize = 1 << 20 // 1 MB
+	userAgent             = "intervals-icu-mcp"
 )
 
 // ErrGitHubTokenExchange is returned when the GitHub OAuth token exchange fails.
@@ -68,6 +69,7 @@ func (c *Client) ExchangeCode(
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -116,6 +118,7 @@ func (c *Client) GetUser(ctx context.Context, accessToken string) (*User, error)
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

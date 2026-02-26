@@ -40,7 +40,16 @@ const (
 	scopeMCP = "mcp"
 )
 
-var errInvalidState = errors.New("invalid or tampered state parameter")
+var (
+	errInvalidState              = errors.New("invalid or tampered state parameter")
+	errRedirectURIsRequired      = errors.New("redirect_uris is required")
+	errInvalidRedirectURI        = errors.New("invalid redirect_uri")
+	errRedirectURIBadScheme      = errors.New("redirect_uri must use http or https scheme")
+	errRedirectURIMissingHost    = errors.New("redirect_uri must have a host")
+	errRedirectURIHasFragment    = errors.New("redirect_uri must not contain a fragment")
+	errRedirectURINotLoopback    = errors.New("redirect_uri with http scheme is only allowed for loopback addresses")
+	errUnsupportedGrantType = errors.New("unsupported grant_type")
+)
 
 // HandlerParams holds the DI-injected dependencies for the OAuth Handler.
 type HandlerParams struct {
@@ -149,14 +158,14 @@ func (h *Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 
 	signedState, err := h.signState(authState)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		h.redirectError(w, r, authState, "server_error", "internal error")
 
 		return
 	}
 
 	ghURL, err := url.Parse(githubAuthorizeURL)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		h.redirectError(w, r, authState, "server_error", "internal error")
 
 		return
 	}
@@ -251,23 +260,25 @@ func validateScope(raw string) (string, *oauthValidationError) {
 // exchanges the GitHub authorization code for an access token, fetches the GitHub user,
 // checks the allowlist, generates an auth code, and redirects back to the client.
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
-	code, authState, valErr := h.validateCallbackParams(r.URL.Query())
+	query := r.URL.Query()
+
+	code, authState, valErr := h.validateCallbackParams(query)
 	if valErr != nil {
-		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
+		h.redirectOrWriteError(w, r, query.Get("state"), valErr)
 
 		return
 	}
 
 	ghUser, ghErr := h.resolveGitHubUser(r, code)
 	if ghErr != nil {
-		writeOAuthError(w, ghErr.code, ghErr.description, ghErr.status)
+		h.redirectError(w, r, authState, ghErr.code, ghErr.description)
 
 		return
 	}
 
 	authCode, err := generateRandomString(authCodeLength)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		h.redirectError(w, r, authState, "server_error", "internal error")
 
 		return
 	}
@@ -278,7 +289,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		RedirectURI:         authState.RedirectURI,
 		CodeChallenge:       authState.CodeChallenge,
 		CodeChallengeMethod: authState.CodeChallengeMethod,
-		GitHubUsername:      ghUser.Login,
+		GitHubUsername:      strings.ToLower(ghUser.Login),
 		Scopes:              parseScopes(authState.Scope),
 		ExpiresAt:           time.Now().Add(authCodeTTL),
 	})
@@ -292,6 +303,52 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	redirectQuery := redirectURL.Query()
 	redirectQuery.Set("code", authCode)
+
+	if authState.OriginalState != "" {
+		redirectQuery.Set("state", authState.OriginalState)
+	}
+
+	redirectURL.RawQuery = redirectQuery.Encode()
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
+}
+
+// redirectOrWriteError attempts to redirect the OAuth error back to the client's redirect_uri
+// by verifying the HMAC-signed state. If the state is absent or invalid, it falls back to a
+// JSON error response (the best we can do when we can't identify the client).
+func (h *Handler) redirectOrWriteError(
+	w http.ResponseWriter, r *http.Request, signedState string, valErr *oauthValidationError,
+) {
+	if signedState == "" {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
+
+		return
+	}
+
+	authState, err := h.verifyState(signedState)
+	if err != nil {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
+
+		return
+	}
+
+	h.redirectError(w, r, authState, valErr.code, valErr.description)
+}
+
+// redirectError sends an OAuth error back to the client's redirect_uri as query parameters
+// per RFC 6749 Section 4.1.2.1.
+func (h *Handler) redirectError(
+	w http.ResponseWriter, r *http.Request, authState authorizeState, errCode, description string,
+) {
+	redirectURL, err := url.Parse(authState.RedirectURI)
+	if err != nil {
+		writeOAuthError(w, errCode, description, http.StatusBadRequest)
+
+		return
+	}
+
+	redirectQuery := redirectURL.Query()
+	redirectQuery.Set("error", errCode)
+	redirectQuery.Set("error_description", description)
 
 	if authState.OriginalState != "" {
 		redirectQuery.Set("state", authState.OriginalState)
@@ -339,6 +396,8 @@ func (h *Handler) resolveGitHubUser(
 ) (*github.User, *oauthValidationError) {
 	ghToken, err := h.ghClient.ExchangeCode(r.Context(), string(h.ghClientID), string(h.ghClientSecret), code)
 	if err != nil {
+		slog.Error("GitHub code exchange failed", "error", err)
+
 		return nil, &oauthValidationError{
 			"server_error", "failed to exchange GitHub code", http.StatusInternalServerError,
 		}
@@ -346,6 +405,8 @@ func (h *Handler) resolveGitHubUser(
 
 	ghUser, err := h.ghClient.GetUser(r.Context(), ghToken)
 	if err != nil {
+		slog.Error("GitHub user fetch failed", "error", err)
+
 		return nil, &oauthValidationError{
 			"server_error", "failed to fetch GitHub user", http.StatusInternalServerError,
 		}
@@ -502,14 +563,8 @@ func (h *Handler) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request
 
 	now := time.Now()
 
-	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, now)
+	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, clientID, now)
 	if err != nil {
-		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
-
-		return
-	}
-
-	if clientID != refreshTok.ClientID {
 		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
 
 		return
@@ -523,7 +578,7 @@ func (h *Handler) issueTokenPair(
 ) {
 	accessToken, err := auth.IssueAccessToken(h.jwtSecret, h.issuer, accessTokenTTL, username, scopes)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		writeOAuthError(w, "server_error", "internal error", http.StatusInternalServerError)
 
 		return
 	}
@@ -533,7 +588,7 @@ func (h *Handler) issueTokenPair(
 	if slices.Contains(grantTypes, grantTypeRefreshToken) {
 		refreshToken, err = auth.IssueRefreshToken()
 		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			writeOAuthError(w, "server_error", "internal error", http.StatusInternalServerError)
 
 			return
 		}
@@ -580,22 +635,22 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateRedirectURIs(req.RedirectURIs); err != "" {
-		writeOAuthError(w, "invalid_client_metadata", err, http.StatusBadRequest)
+	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
+		writeOAuthError(w, "invalid_client_metadata", err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
 	grantTypes, grantErr := validateGrantTypes(req.GrantTypes)
-	if grantErr != "" {
-		writeOAuthError(w, "invalid_client_metadata", grantErr, http.StatusBadRequest)
+	if grantErr != nil {
+		writeOAuthError(w, "invalid_client_metadata", grantErr.Error(), http.StatusBadRequest)
 
 		return
 	}
 
 	clientID, err := uuid.NewV4()
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		writeOAuthError(w, "server_error", "internal error", http.StatusInternalServerError)
 
 		return
 	}
@@ -637,35 +692,35 @@ const (
 // validateRedirectURIs checks that redirect URIs are present, use http/https scheme,
 // have a non-empty host, and contain no fragment (per OAuth 2.1 Section 2.3.1).
 // HTTP scheme is only allowed for loopback addresses (127.0.0.1, [::1], localhost).
-func validateRedirectURIs(uris []string) string {
+func validateRedirectURIs(uris []string) error {
 	if len(uris) == 0 {
-		return "redirect_uris is required"
+		return errRedirectURIsRequired
 	}
 
 	for _, uri := range uris {
 		parsed, err := url.Parse(uri)
 		if err != nil {
-			return "invalid redirect_uri: " + uri
+			return fmt.Errorf("%w: %s", errInvalidRedirectURI, uri)
 		}
 
 		if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
-			return "redirect_uri must use http or https scheme: " + uri
+			return fmt.Errorf("%w: %s", errRedirectURIBadScheme, uri)
 		}
 
-		if parsed.Host == "" {
-			return "redirect_uri must have a host: " + uri
+		if parsed.Hostname() == "" {
+			return fmt.Errorf("%w: %s", errRedirectURIMissingHost, uri)
 		}
 
 		if parsed.Fragment != "" {
-			return "redirect_uri must not contain a fragment: " + uri
+			return fmt.Errorf("%w: %s", errRedirectURIHasFragment, uri)
 		}
 
 		if parsed.Scheme == schemeHTTP && !isLoopbackHost(parsed.Hostname()) {
-			return "redirect_uri with http scheme is only allowed for loopback addresses: " + uri
+			return fmt.Errorf("%w: %s", errRedirectURINotLoopback, uri)
 		}
 	}
 
-	return ""
+	return nil
 }
 
 // isLoopbackHost returns true if the hostname is a loopback address.
@@ -674,19 +729,18 @@ func isLoopbackHost(hostname string) bool {
 }
 
 // validateGrantTypes validates and defaults the grant_types list.
-// Returns the validated list and an error string (empty if valid).
-func validateGrantTypes(grantTypes []string) ([]string, string) {
+func validateGrantTypes(grantTypes []string) ([]string, error) {
 	if len(grantTypes) == 0 {
-		return []string{grantTypeAuthorizationCode}, ""
+		return []string{grantTypeAuthorizationCode}, nil
 	}
 
 	for _, gt := range grantTypes {
 		if gt != grantTypeAuthorizationCode && gt != grantTypeRefreshToken {
-			return nil, "unsupported grant_type: " + gt + "; only authorization_code and refresh_token are supported"
+			return nil, fmt.Errorf("%w: %s", errUnsupportedGrantType, gt)
 		}
 	}
 
-	return grantTypes, ""
+	return grantTypes, nil
 }
 
 // signState creates an HMAC-SHA256 signed state string from the authorize parameters.

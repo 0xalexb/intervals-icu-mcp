@@ -398,11 +398,20 @@ func TestHandleCallback_UserNotAllowed(t *testing.T) {
 
 	h.HandleCallback(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	assertOAuthErrorCode(t, rec.Body.Bytes(), "access_denied")
+	loc := rec.Header().Get("Location")
+	locURL, err := url.Parse(loc)
+
+	if err != nil {
+		t.Fatalf("parsing redirect location: %v", err)
+	}
+
+	if locURL.Query().Get("error") != "access_denied" {
+		t.Fatalf("expected error=access_denied in redirect, got %q", locURL.Query().Get("error"))
+	}
 }
 
 func TestHandleCallback_EmptyAllowList(t *testing.T) {
@@ -446,6 +455,21 @@ func TestHandleCallback_EmptyAllowList(t *testing.T) {
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected 302 (any user allowed), got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	loc := rec.Header().Get("Location")
+	locURL, err := url.Parse(loc)
+
+	if err != nil {
+		t.Fatalf("parsing redirect location: %v", err)
+	}
+
+	if locURL.Query().Get("code") == "" {
+		t.Fatal("expected non-empty code in redirect")
+	}
+
+	if locURL.Query().Get("error") != "" {
+		t.Fatalf("expected no error in redirect, got %q", locURL.Query().Get("error"))
 	}
 }
 
@@ -510,6 +534,55 @@ func TestHandleCallback_GitHubError(t *testing.T) {
 	}
 
 	assertOAuthErrorCode(t, rec.Body.Bytes(), "access_denied")
+}
+
+func TestHandleCallback_GitHubErrorWithValidState(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	as := authorizeState{
+		ClientID:      "my-client",
+		RedirectURI:   "https://client.example.com/callback",
+		OriginalState: "client-state-123",
+		Nonce:         "nonce",
+		CreatedAt:     time.Now().Unix(),
+	}
+
+	signedState, err := h.signState(as)
+	if err != nil {
+		t.Fatalf("signing state: %v", err)
+	}
+
+	params := url.Values{
+		"error":             {"access_denied"},
+		"error_description": {"user denied access"},
+		"state":             {signedState},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	loc := rec.Header().Get("Location")
+	locURL, err := url.Parse(loc)
+
+	if err != nil {
+		t.Fatalf("parsing redirect location: %v", err)
+	}
+
+	if locURL.Query().Get("error") != "access_denied" {
+		t.Fatalf("expected error=access_denied in redirect, got %q", locURL.Query().Get("error"))
+	}
+
+	if locURL.Query().Get("state") != "client-state-123" {
+		t.Fatalf("expected state=client-state-123 in redirect, got %q", locURL.Query().Get("state"))
+	}
 }
 
 func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
@@ -1684,6 +1757,223 @@ func TestHandleToken_AuthorizationCodeGrant_ClientWithoutAuthCodeGrant(t *testin
 	}
 
 	assertOAuthErrorCode(t, rec.Body.Bytes(), "unauthorized_client")
+}
+
+func TestHandleAuthorize_InvalidScope(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	saveTestClient(t, h.store, "my-client", []string{"authorization_code"})
+
+	params := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {"my-client"},
+		"redirect_uri":          {"https://client.example.com/callback"},
+		"code_challenge":        {"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"},
+		"code_challenge_method": {"S256"},
+		"scope":                 {"admin"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+
+	h.HandleAuthorize(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_scope")
+}
+
+func TestHandleCallback_MissingState(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	params := url.Values{
+		"code": {"some-code"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_request")
+}
+
+func TestHandleToken_AuthorizationCodeGrant_MissingClientID(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"test-code"},
+		"code_verifier": {"verifier"},
+		"redirect_uri":  {"https://example.com/callback"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_request")
+}
+
+func TestHandleToken_AuthorizationCodeGrant_MissingRedirectURI(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"test-code"},
+		"code_verifier": {"verifier"},
+		"client_id":     {"my-client"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_request")
+}
+
+func TestHandleToken_AuthorizationCodeGrant_RedirectURIMismatch(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+	saveTestClient(t, h.store, "my-client", []string{"authorization_code"})
+
+	codeVerifier := "redirect-mismatch-verifier"
+	codeChallenge := computeS256Challenge(codeVerifier)
+
+	h.store.SaveAuthCode(&auth.Code{
+		Code:                "redirect-mismatch-code",
+		ClientID:            "my-client",
+		RedirectURI:         "https://client.example.com/callback",
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+		GitHubUsername:      "alice",
+		Scopes:              []string{"mcp"},
+		ExpiresAt:           time.Now().Add(10 * time.Minute),
+	})
+
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"redirect-mismatch-code"},
+		"code_verifier": {codeVerifier},
+		"client_id":     {"my-client"},
+		"redirect_uri":  {"https://evil.example.com/steal"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_grant")
+}
+
+func TestHandleToken_RefreshTokenGrant_MissingClientID(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {"some-token"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_request")
+}
+
+func TestHandleToken_RefreshTokenGrant_ClientIDMismatch(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+	saveTestClient(t, h.store, "client-a", []string{"authorization_code", "refresh_token"})
+	saveTestClient(t, h.store, "client-b", []string{"authorization_code", "refresh_token"})
+
+	h.store.SaveRefreshToken(&auth.RefreshToken{
+		Token:         "rt-for-client-a",
+		ClientID:      "client-a",
+		GitHubUsername: "alice",
+		Scopes:        []string{"mcp"},
+		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour),
+	})
+
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {"rt-for-client-a"},
+		"client_id":     {"client-b"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_grant")
+}
+
+func TestHandleRegister_UnsupportedGrantType(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	body := `{"redirect_uris": ["https://example.com/cb"], "grant_types": ["client_credentials"]}`
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	h.HandleRegister(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_client_metadata")
 }
 
 func assertOAuthErrorCode(t *testing.T, body []byte, expectedCode string) {

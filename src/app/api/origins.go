@@ -85,7 +85,7 @@ func validateOrigin(entry string) error {
 		return errOriginMissingScheme
 	}
 
-	if parsed.Host == "" {
+	if parsed.Hostname() == "" {
 		return errOriginEmptyHost
 	}
 

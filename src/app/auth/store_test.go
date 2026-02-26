@@ -149,7 +149,7 @@ func TestSaveRefreshToken_And_ConsumeRefreshToken(t *testing.T) {
 
 	store.SaveRefreshToken(token)
 
-	got, err := store.ConsumeRefreshToken("refresh-token-1", now)
+	got, err := store.ConsumeRefreshToken("refresh-token-1", "client-1", now)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,12 +177,12 @@ func TestConsumeRefreshToken_Rotation(t *testing.T) {
 
 	store.SaveRefreshToken(token)
 
-	_, err := store.ConsumeRefreshToken("old-refresh-token", now)
+	_, err := store.ConsumeRefreshToken("old-refresh-token", "client-1", now)
 	if err != nil {
 		t.Fatalf("first consume should succeed: %v", err)
 	}
 
-	_, err = store.ConsumeRefreshToken("old-refresh-token", now)
+	_, err = store.ConsumeRefreshToken("old-refresh-token", "client-1", now)
 	if err == nil {
 		t.Fatal("second consume should fail after rotation")
 	}
@@ -199,7 +199,7 @@ func TestConsumeRefreshToken_Rotation(t *testing.T) {
 
 	store.SaveRefreshToken(newToken)
 
-	got, err := store.ConsumeRefreshToken("new-refresh-token", now)
+	got, err := store.ConsumeRefreshToken("new-refresh-token", "client-1", now)
 	if err != nil {
 		t.Fatalf("consuming new token should succeed: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestConsumeRefreshToken_Expired(t *testing.T) {
 
 	store.SaveRefreshToken(token)
 
-	_, err := store.ConsumeRefreshToken("expired-refresh", time.Now())
+	_, err := store.ConsumeRefreshToken("expired-refresh", "client-1", time.Now())
 	if err == nil {
 		t.Fatal("expected error for expired refresh token")
 	}
@@ -247,9 +247,9 @@ func TestConsumeRefreshToken_ExpiredTokenIsDeletedFromStore(t *testing.T) {
 
 	store.SaveRefreshToken(token)
 
-	_, _ = store.ConsumeRefreshToken("expired-deleted-refresh", time.Now())
+	_, _ = store.ConsumeRefreshToken("expired-deleted-refresh", "client-1", time.Now())
 
-	_, err := store.ConsumeRefreshToken("expired-deleted-refresh", time.Now())
+	_, err := store.ConsumeRefreshToken("expired-deleted-refresh", "client-1", time.Now())
 	if err != errRefreshTokenNotFound {
 		t.Fatalf("expected errRefreshTokenNotFound after consuming expired token, got %v", err)
 	}
@@ -260,7 +260,7 @@ func TestConsumeRefreshToken_NotFound(t *testing.T) {
 
 	store := NewStore()
 
-	_, err := store.ConsumeRefreshToken("nonexistent", time.Now())
+	_, err := store.ConsumeRefreshToken("nonexistent", "any-client", time.Now())
 	if err == nil {
 		t.Fatal("expected error for nonexistent token")
 	}
@@ -369,7 +369,7 @@ func TestNewStore_EmptyMaps(t *testing.T) {
 		t.Fatalf("expected errAuthCodeNotFound on empty store, got %v", err)
 	}
 
-	_, err = store.ConsumeRefreshToken("any", time.Now())
+	_, err = store.ConsumeRefreshToken("any", "any-client", time.Now())
 	if err != errRefreshTokenNotFound {
 		t.Fatalf("expected errRefreshTokenNotFound on empty store, got %v", err)
 	}
@@ -450,12 +450,12 @@ func TestEvictExpired(t *testing.T) {
 		t.Fatalf("expected 'valid-code', got %q", got.Code)
 	}
 
-	_, err = store.ConsumeRefreshToken("expired-rt", now)
+	_, err = store.ConsumeRefreshToken("expired-rt", "client-1", now)
 	if err != errRefreshTokenNotFound {
 		t.Fatalf("expected expired refresh token to be evicted, got %v", err)
 	}
 
-	gotRT, err := store.ConsumeRefreshToken("valid-rt", now)
+	gotRT, err := store.ConsumeRefreshToken("valid-rt", "client-1", now)
 	if err != nil {
 		t.Fatalf("expected valid refresh token to survive eviction: %v", err)
 	}
@@ -502,7 +502,7 @@ func TestEvictExpired_EvictsExpiredClients(t *testing.T) {
 	}
 }
 
-func TestEvictExpired_FreesClientSlots(t *testing.T) {
+func TestSaveClient_AutoEvictsExpiredOnCapHit(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
@@ -518,21 +518,20 @@ func TestEvictExpired_FreesClientSlots(t *testing.T) {
 	}
 
 	err := store.SaveClient(&RegisteredClient{
-		ClientID:  "overflow",
-		CreatedAt: now,
-	})
-	if err != errMaxClientsReached {
-		t.Fatalf("expected maxClients limit, got %v", err)
-	}
-
-	store.evictExpired(now)
-
-	err = store.SaveClient(&RegisteredClient{
-		ClientID:  "new-after-eviction",
+		ClientID:  "auto-evicted",
 		CreatedAt: now,
 	})
 	if err != nil {
-		t.Fatalf("expected registration to succeed after eviction: %v", err)
+		t.Fatalf("expected auto-eviction to free slots, got %v", err)
+	}
+
+	got, err := store.GetClient("auto-evicted")
+	if err != nil {
+		t.Fatalf("expected new client to exist: %v", err)
+	}
+
+	if got.ClientID != "auto-evicted" {
+		t.Fatalf("expected 'auto-evicted', got %q", got.ClientID)
 	}
 }
 

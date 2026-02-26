@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"
 	appauth "github.com/0xalexb/intervals-icu-mcp/src/app/auth"
+	ghclient "github.com/0xalexb/intervals-icu-mcp/src/app/clients/github"
 )
 
 const testIssuer = appauth.Issuer("http://localhost:8080")
@@ -21,12 +23,11 @@ func localhostOrigins() AllowedOrigins {
 func testRouterParams(mcpHandler http.Handler, origins AllowedOrigins) RouterParams {
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
 	store := appauth.NewStore()
-	ghClient := appauth.NewGitHubClient()
 	metadata := appauth.NewAuthorizationServerMetadata(testIssuer)
 	prMetadata := appauth.NewProtectedResourceMetadata(testIssuer)
 	verifier := appauth.NewTokenVerifier(secret, testIssuer)
 
-	handler := appauth.NewHandler(appauth.HandlerParams{
+	handler := rest.NewHandler(rest.HandlerParams{
 		Store:                       store,
 		AllowedUsers:                appauth.AllowedUsers{},
 		GitHubClientID:              "test-client-id",
@@ -34,7 +35,7 @@ func testRouterParams(mcpHandler http.Handler, origins AllowedOrigins) RouterPar
 		JWTSecret:                   secret,
 		Issuer:                      testIssuer,
 		AuthorizationServerMetadata: metadata,
-		GitHubClient:                ghClient,
+		GitHubClient:                ghclient.NewClient(),
 	})
 
 	return RouterParams{

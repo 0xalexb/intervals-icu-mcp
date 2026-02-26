@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"go.uber.org/fx"
 
+	"github.com/0xalexb/intervals-icu-mcp/src/app/api/rest"
 	appauth "github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 )
 
@@ -26,7 +27,7 @@ type RouterParams struct {
 
 	MCPHandler                  http.Handler                        `name:"mcp-raw"`
 	Origins                     AllowedOrigins
-	AuthHandler                 *appauth.Handler
+	AuthHandler                 *rest.Handler
 	AuthorizationServerMetadata *appauth.AuthorizationServerMetadata
 	ProtectedResourceMetadata   *oauthex.ProtectedResourceMetadata
 	TokenVerifier               auth.TokenVerifier

@@ -88,14 +88,14 @@ Refactor the `src/app/auth/` package by extracting OAuth HTTP handlers into `src
 
 ### Task 5: Verify acceptance criteria
 
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
-- [ ] Verify no circular dependencies between packages
-- [ ] Verify `src/app/auth/` contains only: `config.go`, `config_test.go`, `store.go`, `store_test.go`, `jwt.go`, `jwt_test.go`, `metadata.go`, `metadata_test.go`, `di.go`
-- [ ] Verify `src/app/clients/github/` contains: `github.go`, `github_test.go`, `testing.go`, `di.go`
-- [ ] Verify `src/app/api/rest/` contains: `handler.go`, `handler_test.go`, `di.go`
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
+- [x] Verify no circular dependencies between packages
+- [x] Verify `src/app/auth/` contains only: `config.go`, `config_test.go`, `store.go`, `store_test.go`, `jwt.go`, `jwt_test.go`, `metadata.go`, `metadata_test.go`, `di.go`
+- [x] Verify `src/app/clients/github/` contains: `github.go`, `github_test.go`, `testing.go`, `di.go`
+- [x] Verify `src/app/api/rest/` contains: `handler.go`, `handler_test.go`, `di.go`
 
 ### Task 6: Update documentation
 
-- [ ] Update CLAUDE.md: document new package structure (`src/app/clients/github/`, `src/app/api/rest/`), update auth package description, update DI module composition description, add linter exclusion notes for new paths
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update CLAUDE.md: document new package structure (`src/app/clients/github/`, `src/app/api/rest/`), update auth package description, update DI module composition description, add linter exclusion notes for new paths
+- [x] Move this plan to `docs/plans/completed/`

@@ -20,10 +20,11 @@ const (
 	maxGitHubResponseSize = 1 << 20 // 1 MB
 )
 
-var (
-	ErrGitHubTokenExchange = errors.New("GitHub token exchange failed")
-	ErrGitHubUserFetch     = errors.New("GitHub user fetch failed")
-)
+// ErrGitHubTokenExchange is returned when the GitHub OAuth token exchange fails.
+var ErrGitHubTokenExchange = errors.New("GitHub token exchange failed")
+
+// ErrGitHubUserFetch is returned when fetching the GitHub user profile fails.
+var ErrGitHubUserFetch = errors.New("GitHub user fetch failed")
 
 // User represents the authenticated GitHub user's profile.
 type User struct {

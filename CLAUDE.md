@@ -8,8 +8,10 @@
 - `src/app/` package contains the MCP server, its DI module, and lifecycle management.
 - `src/app/client/` package contains the Intervals.icu HTTP client (auth, base URL, JSON requests).
 - `src/app/api/` package contains HTTP routing configuration (mounts MCP handler at `/mcp`).
+- `src/app/api/rest/` package contains OAuth 2.1 HTTP handlers (authorize, callback, token, register, metadata endpoints).
 - `src/app/tools/` package contains MCP tool registrations (one file per tool).
-- `src/app/auth/` package contains OAuth 2.1 authentication (config, JWT, store, GitHub integration, HTTP handlers, metadata).
+- `src/app/auth/` package contains OAuth 2.1 core logic (config, JWT issuance/verification, in-memory store, authorization server metadata).
+- `src/app/clients/github/` package contains the GitHub OAuth HTTP client (code exchange, user profile fetching).
 
 ## Architecture
 
@@ -45,13 +47,16 @@
 - `src/app/auth/config.go` defines named types for CLI flag values and validation constructors: `NewAllowedUsers` (comma-split, lowercase), `NewValidatedIssuer` (URL validation), `NewJWTSecret` (auto-generate if empty).
 - `src/app/auth/store.go` implements an in-memory `Store` with `sync.RWMutex` for auth codes (one-time use with expiry), refresh tokens (rotation via consume-and-reissue), and registered clients (dynamic registration per RFC 7591).
 - `src/app/auth/jwt.go` implements `IssueAccessToken` (HMAC-SHA256 JWT with iss/sub/exp/iat/jti/scope claims), `IssueRefreshToken` (random 32-byte base64url), and `NewTokenVerifier` (returns `auth.TokenVerifier` that maps JWT to `auth.TokenInfo`).
-- `src/app/auth/github.go` implements `GitHubClient` with `ExchangeGitHubCode` (POST to GitHub token endpoint) and `GetGitHubUser` (GET GitHub user API). Base URLs are configurable for testing.
+- `src/app/clients/github/github.go` implements `Client` with `ExchangeCode` (POST to GitHub token endpoint) and `GetUser` (GET GitHub user API). Methods accept plain `string` parameters (not auth named types) to avoid coupling. Base URLs are configurable for testing.
+- `src/app/clients/github/testing.go` exports `NewTestClient(tokenURL, userURL string) *Client` for tests (follows `client/testing.go` pattern).
+- `src/app/clients/github/di.go` contains `github.Module` (`fx.Module("github")`), which provides `Client`. `app.Module` composes it as `ghclient.Module`.
 - `src/app/auth/metadata.go` implements `NewAuthorizationServerMetadata` (AS metadata with endpoints derived from issuer) and `NewProtectedResourceMetadata` (protected resource metadata pointing to the AS).
-- `src/app/auth/handler.go` implements `Handler` with OAuth HTTP endpoints: `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`), `HandleAuthorize` (GET `/oauth/authorize` - validates PKCE, HMAC-signs state, redirects to GitHub), `HandleCallback` (GET `/oauth/callback` - verifies state, exchanges GitHub code, checks allowlist, issues auth code), `HandleToken` (POST `/oauth/token` - authorization_code with PKCE and refresh_token grants), `HandleRegister` (POST `/oauth/register` - dynamic client registration).
-- `src/app/auth/di.go` contains `auth.Module`, which provides: AllowedUsers, validated Issuer, JWTSecret, Store, Handler, GitHubClient, AuthorizationServerMetadata, ProtectedResourceMetadata, TokenVerifier. `app.Module` composes `auth.Module` as a sub-module. Re-exports `oauthex.ProtectedResourceMetadata` and `auth.TokenVerifier` as type aliases.
-- The API router (in streamable mode) registers OAuth discovery and flow endpoints, and wraps `/mcp` with `auth.RequireBearerToken` middleware that validates JWT bearer tokens and sets `ResourceMetadataURL` to `/.well-known/oauth-protected-resource`.
+- `src/app/auth/di.go` contains `auth.Module`, which provides: AllowedUsers, validated Issuer, JWTSecret, Store, AuthorizationServerMetadata, ProtectedResourceMetadata, TokenVerifier. `app.Module` composes `auth.Module` as a sub-module. Re-exports `oauthex.ProtectedResourceMetadata` and `auth.TokenVerifier` as type aliases.
+- `src/app/api/rest/handler.go` implements `Handler` with OAuth HTTP endpoints: `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`), `HandleAuthorize` (GET `/oauth/authorize` - validates PKCE, HMAC-signs state, redirects to GitHub), `HandleCallback` (GET `/oauth/callback` - verifies state, exchanges GitHub code, checks allowlist, issues auth code), `HandleToken` (POST `/oauth/token` - authorization_code with PKCE and refresh_token grants), `HandleRegister` (POST `/oauth/register` - dynamic client registration). `HandlerParams` references types from `auth` and `clients/github`.
+- `src/app/api/rest/di.go` contains `rest.Module` (`fx.Module("rest")`), which provides `Handler`. `app.Module` composes `rest.Module` as a sub-module.
+- The API router (in streamable mode) registers OAuth discovery and flow endpoints (delegating to `rest.Handler`), and wraps `/mcp` with `auth.RequireBearerToken` middleware that validates JWT bearer tokens and sets `ResourceMetadataURL` to `/.well-known/oauth-protected-resource`.
 - API tools receive `*client.Client` via DI and return JSON responses as TextContent.
-- `src/app/client/testing.go` exports `NewTestClient()` for creating test clients with custom base URLs (used by tool tests with `httptest.Server`).
+- `src/app/client/testing.go` exports `NewTestClient()` for creating test clients with custom base URLs (used by tool tests with `httptest.Server`). `src/app/clients/github/testing.go` follows the same pattern.
 
 ## Build & Lint
 
@@ -70,7 +75,10 @@
 - `src/app/tools/` path has exclusions for `dupl` and `tagliatelle` (tool files share repetitive structure).
 - `src/app/api/` path has a text-based exclusion for "avoid meaningless package names" (the `api` package name is accepted despite the revive suggestion).
 - `src/app/` path has exclusions for `exhaustruct` (MCP server, DI, and client code use partial struct initialization extensively).
-- `src/app/auth/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth handler, store, and metadata code use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
+- `src/app/auth/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth store and metadata code use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
+- `src/app/api/rest/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth HTTP handlers use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
+- `src/app/clients/github/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, and `noinlineerr` (GitHub client uses partial struct initialization, external JSON tags, and short variable names).
+- `src/app/clients/` path has a text-based exclusion for "avoid meaningless package names" (the `github` package name is intentional).
 - `testpackage` linter is disabled globally; tests use internal package access (e.g., `package app` not `package app_test`).
 - Use `//nolint:<linter>` comments only when the issue is inherent to the framework pattern (e.g., `ireturn` on `fx.Option` returns, `contextcheck` when fx lifecycle hooks require creating a new context, `gochecknoglobals` on `fx.Module` package variables).
 

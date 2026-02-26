@@ -38,6 +38,23 @@ linters:
           - varnamelen
           - noinlineerr
           - funcorder
+      - path: src/app/api/rest/
+        linters:
+          - exhaustruct
+          - tagliatelle
+          - gosec
+          - varnamelen
+          - noinlineerr
+          - funcorder
+      - path: src/app/clients/github/
+        linters:
+          - exhaustruct
+          - tagliatelle
+          - gosec
+          - varnamelen
+          - noinlineerr
+      - path: src/app/clients/
+        text: "avoid meaningless package names"
       - path: src/app/
         linters:
           - exhaustruct

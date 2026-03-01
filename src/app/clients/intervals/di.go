@@ -1,4 +1,4 @@
-package client
+package intervals
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 )
 
 // Module provides the Intervals.icu API client and its configuration.
-var Module = fx.Module("client", //nolint:gochecknoglobals // fx.Module as package variable is the standard DI pattern.
+var Module = fx.Module("intervals", //nolint:gochecknoglobals // standard DI pattern.
 	fx.Provide(func() Config {
 		return Config{
 			APIKey:    os.Getenv("INTERVALS_API_KEY"),

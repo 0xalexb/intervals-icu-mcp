@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type getPowerCurveArgs struct {
@@ -16,7 +16,7 @@ type getPowerCurveArgs struct {
 }
 
 // NewGetPowerCurveTool returns a ToolRegistration that registers the get_power_curve tool on an MCP server.
-func NewGetPowerCurveTool(apiClient *client.Client) ToolRegistration {
+func NewGetPowerCurveTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

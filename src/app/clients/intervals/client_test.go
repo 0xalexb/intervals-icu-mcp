@@ -1,4 +1,4 @@
-package client
+package intervals
 
 import (
 	"context"

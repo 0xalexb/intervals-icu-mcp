@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xalexb/intervals-icu-mcp/src/app/api"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/auth"
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 func TestModule_ProvidesServer_Streamable(t *testing.T) {
@@ -18,7 +18,7 @@ func TestModule_ProvidesServer_Streamable(t *testing.T) {
 	var server *Server
 	var handler http.Handler
 
-	testClient := client.NewTestClient("http://localhost", "test-key", "i123", nil)
+	testClient := intervals.NewTestClient("http://localhost", "test-key", "i123", nil)
 
 	app := fxtest.New(t,
 		fx.Supply(TransportStreamable),
@@ -28,7 +28,7 @@ func TestModule_ProvidesServer_Streamable(t *testing.T) {
 		fx.Supply(auth.RawAllowedUsers("")),
 		fx.Supply(auth.RawJWTSecret("")),
 		fx.Supply(auth.RawIssuer("http://localhost:8080")),
-		fx.Decorate(func() *client.Client { return testClient }),
+		fx.Decorate(func() *intervals.Client { return testClient }),
 		Module,
 		fx.Populate(&server),
 		fx.Populate(fx.Annotate(&handler, fx.ParamTags(`name:"mcp"`))),
@@ -55,12 +55,12 @@ func TestModule_ProvidesServer_Stdio(t *testing.T) {
 
 	var server *Server
 
-	testClient := client.NewTestClient("http://localhost", "test-key", "i123", nil)
+	testClient := intervals.NewTestClient("http://localhost", "test-key", "i123", nil)
 
 	app := fxtest.New(t,
 		fx.Supply(TransportStdio),
 		fx.Supply(api.RawAllowedOrigins("")),
-		fx.Decorate(func() *client.Client { return testClient }),
+		fx.Decorate(func() *intervals.Client { return testClient }),
 		Module,
 		fx.Populate(&server),
 	)

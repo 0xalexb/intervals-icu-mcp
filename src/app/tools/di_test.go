@@ -6,7 +6,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 func TestModule_ProvidesToolRegistrations(t *testing.T) {
@@ -14,7 +14,7 @@ func TestModule_ProvidesToolRegistrations(t *testing.T) {
 
 	var registrations []ToolRegistration
 
-	testClient := client.NewTestClient("http://localhost", "test-key", "i123", nil)
+	testClient := intervals.NewTestClient("http://localhost", "test-key", "i123", nil)
 
 	app := fxtest.New(t,
 		Module,

@@ -53,6 +53,9 @@ linters:
           - gosec
           - varnamelen
           - noinlineerr
+      - path: src/app/clients/intervals/
+        linters:
+          - noinlineerr
       - path: src/app/clients/
         text: "avoid meaningless package names"
       - path: src/app/

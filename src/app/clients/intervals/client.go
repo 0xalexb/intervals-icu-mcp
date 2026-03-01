@@ -1,5 +1,5 @@
-// Package client provides an HTTP client for the Intervals.icu API.
-package client
+// Package intervals provides an HTTP client for the Intervals.icu API.
+package intervals
 
 import (
 	"context"

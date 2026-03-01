@@ -9,7 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 func TestNewGetActivityDetailsTool_Success(t *testing.T) {
@@ -37,7 +37,7 @@ func TestNewGetActivityDetailsTool_Success(t *testing.T) {
 	}))
 	defer apiServer.Close()
 
-	c := client.NewTestClient(apiServer.URL, "test-key", "i12345", apiServer.Client())
+	c := intervals.NewTestClient(apiServer.URL, "test-key", "i12345", apiServer.Client())
 
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -124,7 +124,7 @@ func TestNewGetActivityDetailsTool_APIError(t *testing.T) {
 	}))
 	defer apiServer.Close()
 
-	c := client.NewTestClient(apiServer.URL, "test-key", "i12345", apiServer.Client())
+	c := intervals.NewTestClient(apiServer.URL, "test-key", "i12345", apiServer.Client())
 
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{

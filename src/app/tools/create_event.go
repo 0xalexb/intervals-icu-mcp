@@ -8,7 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type createEventArgs struct {
@@ -23,7 +23,7 @@ type createEventArgs struct {
 }
 
 // NewCreateEventTool returns a ToolRegistration that registers the create_event tool on an MCP server.
-func NewCreateEventTool(apiClient *client.Client) ToolRegistration {
+func NewCreateEventTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

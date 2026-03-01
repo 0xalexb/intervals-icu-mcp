@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type getWellnessArgs struct {
@@ -15,7 +15,7 @@ type getWellnessArgs struct {
 }
 
 // NewGetWellnessTool returns a ToolRegistration that registers the get_wellness tool on an MCP server.
-func NewGetWellnessTool(apiClient *client.Client) ToolRegistration {
+func NewGetWellnessTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

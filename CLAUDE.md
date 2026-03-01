@@ -6,7 +6,7 @@
 - Entry point: `src/main.go`.
 - Go module root is at the repository root (`go.mod`).
 - `src/app/` package contains the MCP server, its DI module, and lifecycle management.
-- `src/app/client/` package contains the Intervals.icu HTTP client (auth, base URL, JSON requests).
+- `src/app/clients/intervals/` package contains the Intervals.icu HTTP client (auth, base URL, JSON requests).
 - `src/app/api/` package contains HTTP routing configuration (mounts MCP handler at `/mcp`).
 - `src/app/api/rest/` package contains OAuth 2.1 HTTP handlers (authorize, callback, token, register, metadata endpoints).
 - `src/app/tools/` package contains MCP tool registrations (one file per tool).
@@ -30,7 +30,7 @@
 - `Transport` is a named string type (`Transport string`) in `src/app/transport_config.go` with constants `TransportStdio` and `TransportStreamable`; injected into DI via `fx.Supply()` from main.go.
 - The MCP endpoint path `/mcp` is hardcoded in the api package router (no CLI flag).
 - MCP tools live under `src/app/tools/`. Each tool exports a `ToolRegistration` constructor (e.g., `tools.NewVersionTool()`) that returns a `func(*mcp.Server)` calling `mcp.AddTool` with the correct type parameters. Tools are collected via fx group (`group:"mcp_tools"`) and injected into `NewServer` as `[]tools.ToolRegistration`.
-- `src/app/client/di.go` contains `client.Module`, which provides Config (from env vars INTERVALS_API_KEY and INTERVALS_ATHLETE_ID) and Client. `app.Module` composes `client.Module` as a sub-module.
+- `src/app/clients/intervals/di.go` contains `intervals.Module`, which provides Config (from env vars INTERVALS_API_KEY and INTERVALS_ATHLETE_ID) and Client. `app.Module` composes `intervals.Module` as a sub-module.
 - `src/app/tools/di.go` contains `tools.Module`, which provides tool constructors via the fx group (`group:"mcp_tools"`). `app.Module` composes `tools.Module` as a sub-module.
 - `src/app/api/di.go` contains `api.Module`, which provides `NewAllowedOrigins` (parses/validates `RawAllowedOrigins` into `AllowedOrigins`, returning a DI build error if any origin is malformed) and the routed `http.Handler` (tag `name:"mcp"`) by wrapping the raw MCP handler (tag `name:"mcp-raw"`) via `NewRouter`. `app.Module` composes `api.Module` as a sub-module.
 - `src/app/api/origins.go` defines `RawAllowedOrigins` (named `string`, the raw CLI flag value supplied via `fx.Supply()` from main.go) and `AllowedOrigins` (named `[]string`, the parsed/validated list of full origin URLs). `NewAllowedOrigins` splits by comma, trims whitespace, drops empties, and validates each entry is a full origin URL with scheme (`http://` or `https://`), non-empty host, and no path/query/fragment. `AllowedOrigins` provides a `Hostnames()` method that extracts bare hostnames (without port) from the stored full URLs for use with the CORS middleware.
@@ -48,15 +48,15 @@
 - `src/app/auth/store.go` implements an in-memory `Store` with `sync.RWMutex` for auth codes (one-time use with expiry), refresh tokens (rotation via consume-and-reissue), and registered clients (dynamic registration per RFC 7591).
 - `src/app/auth/jwt.go` implements `IssueAccessToken` (HMAC-SHA256 JWT with iss/sub/exp/iat/jti/scope claims), `IssueRefreshToken` (random 32-byte base64url), and `NewTokenVerifier` (returns `auth.TokenVerifier` that maps JWT to `auth.TokenInfo`).
 - `src/app/clients/github/github.go` implements `Client` with `ExchangeCode` (POST to GitHub token endpoint) and `GetUser` (GET GitHub user API). Methods accept plain `string` parameters (not auth named types) to avoid coupling. Base URLs are configurable for testing.
-- `src/app/clients/github/testing.go` exports `NewTestClient(tokenURL, userURL string) *Client` for tests (follows `client/testing.go` pattern).
+- `src/app/clients/github/testing.go` exports `NewTestClient(tokenURL, userURL string) *Client` for tests (follows `clients/intervals/testing.go` pattern).
 - `src/app/clients/github/di.go` contains `github.Module` (`fx.Module("github")`), which provides `Client`. `app.Module` composes it as `ghclient.Module`.
 - `src/app/auth/metadata.go` implements `NewAuthorizationServerMetadata` (AS metadata with endpoints derived from issuer) and `NewProtectedResourceMetadata` (protected resource metadata pointing to the AS).
 - `src/app/auth/di.go` contains `auth.Module`, which provides: AllowedUsers, validated Issuer, JWTSecret, Store, AuthorizationServerMetadata, ProtectedResourceMetadata, TokenVerifier. `app.Module` composes `auth.Module` as a sub-module.
 - `src/app/api/rest/handler.go` implements `Handler` with OAuth HTTP endpoints: `HandleAuthServerMetadata` (GET `/.well-known/oauth-authorization-server`), `HandleAuthorize` (GET `/oauth/authorize` - validates PKCE, HMAC-signs state, redirects to GitHub), `HandleCallback` (GET `/oauth/callback` - verifies state, exchanges GitHub code, checks allowlist, issues auth code), `HandleToken` (POST `/oauth/token` - authorization_code with PKCE and refresh_token grants), `HandleRegister` (POST `/oauth/register` - dynamic client registration). `HandlerParams` references types from `auth` and `clients/github`.
 - `src/app/api/rest/di.go` contains `rest.Module` (`fx.Module("rest")`), which provides `Handler`. `app.Module` composes `rest.Module` as a sub-module.
 - The API router (in streamable mode) registers OAuth discovery and flow endpoints (delegating to `rest.Handler`), and wraps `/mcp` with `auth.RequireBearerToken` middleware that validates JWT bearer tokens and sets `ResourceMetadataURL` to `/.well-known/oauth-protected-resource`.
-- API tools receive `*client.Client` via DI and return JSON responses as TextContent.
-- `src/app/client/testing.go` exports `NewTestClient()` for creating test clients with custom base URLs (used by tool tests with `httptest.Server`). `src/app/clients/github/testing.go` follows the same pattern.
+- API tools receive `*intervals.Client` via DI and return JSON responses as TextContent.
+- `src/app/clients/intervals/testing.go` exports `NewTestClient()` for creating test clients with custom base URLs (used by tool tests with `httptest.Server`). `src/app/clients/github/testing.go` follows the same pattern.
 
 ## Build & Lint
 
@@ -78,7 +78,8 @@
 - `src/app/auth/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth store and metadata code use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
 - `src/app/api/rest/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, `noinlineerr`, and `funcorder` (OAuth HTTP handlers use partial struct initialization, external JSON tags, crypto operations, and short variable names extensively).
 - `src/app/clients/github/` path has exclusions for `exhaustruct`, `tagliatelle`, `gosec`, `varnamelen`, and `noinlineerr` (GitHub client uses partial struct initialization, external JSON tags, and short variable names).
-- `src/app/clients/` path has a text-based exclusion for "avoid meaningless package names" (the `github` package name is intentional).
+- `src/app/clients/intervals/` path has exclusions for `noinlineerr` (Intervals.icu client uses error wrapping patterns that trigger this linter).
+- `src/app/clients/` path has a text-based exclusion for "avoid meaningless package names" (the `github` and `intervals` package names are intentional).
 - `testpackage` linter is disabled globally; tests use internal package access (e.g., `package app` not `package app_test`).
 - Use `//nolint:<linter>` comments only when the issue is inherent to the framework pattern (e.g., `ireturn` on `fx.Option` returns, `contextcheck` when fx lifecycle hooks require creating a new context, `gochecknoglobals` on `fx.Module` package variables).
 

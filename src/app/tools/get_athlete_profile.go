@@ -6,13 +6,13 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type getAthleteProfileArgs struct{}
 
 // NewGetAthleteProfileTool returns a ToolRegistration for the get_athlete_profile tool.
-func NewGetAthleteProfileTool(apiClient *client.Client) ToolRegistration {
+func NewGetAthleteProfileTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

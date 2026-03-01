@@ -30,12 +30,12 @@ Move the Intervals.icu HTTP client from `src/app/client/` to `src/app/clients/in
 - Create: `src/app/clients/intervals/di.go` (from `src/app/client/di.go`)
 - Create: `src/app/clients/intervals/testing.go` (from `src/app/client/testing.go`)
 
-- [ ] Create `src/app/clients/intervals/` directory
-- [ ] Copy `client.go` to new location, change `package client` to `package intervals`
-- [ ] Copy `di.go` to new location, change package to `intervals`, update fx.Module name from `"client"` to `"intervals"`
-- [ ] Copy `testing.go` to new location, change package to `intervals`
-- [ ] Copy `client_test.go` to new location, change package to `intervals`
-- [ ] Run `go test ./src/app/clients/intervals/...` - must pass before task 2
+- [x] Create `src/app/clients/intervals/` directory
+- [x] Copy `client.go` to new location, change `package client` to `package intervals`
+- [x] Copy `di.go` to new location, change package to `intervals`, update fx.Module name from `"client"` to `"intervals"`
+- [x] Copy `testing.go` to new location, change package to `intervals`
+- [x] Copy `client_test.go` to new location, change package to `intervals`
+- [x] Run `go test ./src/app/clients/intervals/...` - must pass before task 2
 
 ### Task 2: Rewire imports and remove old package
 
@@ -45,13 +45,13 @@ Move the Intervals.icu HTTP client from `src/app/client/` to `src/app/clients/in
 - Modify: all `src/app/tools/*.go` files (14+ files importing `client`)
 - Delete: `src/app/client/` (entire directory)
 
-- [ ] Update `src/app/di.go`: change import from `"...src/app/client"` to `intervals "...src/app/clients/intervals"`, update `client.Module` to `intervals.Module`
-- [ ] Update `src/app/di_test.go`: change import and references from `client` to `intervals`
-- [ ] Update all tool source files (`src/app/tools/*.go`): change import and all `client.Client` references to `intervals.Client`
-- [ ] Update all tool test files (`src/app/tools/*_test.go`): change import and all `client.NewTestClient` references to `intervals.NewTestClient`
-- [ ] Delete `src/app/client/` directory
-- [ ] Run `go build ./src/...` to verify compilation
-- [ ] Run `go test ./src/...` - must pass before task 3
+- [x] Update `src/app/di.go`: change import from `"...src/app/client"` to `intervals "...src/app/clients/intervals"`, update `client.Module` to `intervals.Module`
+- [x] Update `src/app/di_test.go`: change import and references from `client` to `intervals`
+- [x] Update all tool source files (`src/app/tools/*.go`): change import and all `client.Client` references to `intervals.Client`
+- [x] Update all tool test files (`src/app/tools/*_test.go`): change import and all `client.NewTestClient` references to `intervals.NewTestClient`
+- [x] Delete `src/app/client/` directory
+- [x] Run `go build ./src/...` to verify compilation
+- [x] Run `go test ./src/...` - must pass before task 3
 
 ### Task 3: Update linter config and documentation
 
@@ -59,18 +59,18 @@ Move the Intervals.icu HTTP client from `src/app/client/` to `src/app/clients/in
 - Modify: `.golangci.yml`
 - Modify: `CLAUDE.md`
 
-- [ ] Add `src/app/clients/intervals/` linter exclusion for `noinlineerr` in `.golangci.yml` (matching the pattern used by `src/app/clients/github/`)
-- [ ] Update all `CLAUDE.md` references from `src/app/client/` to `src/app/clients/intervals/` (package descriptions, file paths, module references)
-- [ ] Run `go test ./src/...` - must pass
+- [x] Add `src/app/clients/intervals/` linter exclusion for `noinlineerr` in `.golangci.yml` (matching the pattern used by `src/app/clients/github/`)
+- [x] Update all `CLAUDE.md` references from `src/app/client/` to `src/app/clients/intervals/` (package descriptions, file paths, module references)
+- [x] Run `go test ./src/...` - must pass
 
 ### Task 4: Verify acceptance criteria
 
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
-- [ ] Verify no remaining references to old `src/app/client` import path: `grep -r "src/app/client\"" src/`
-- [ ] Verify `src/app/client/` directory no longer exists
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
+- [x] Verify no remaining references to old `src/app/client` import path: `grep -r "src/app/client\"" src/`
+- [x] Verify `src/app/client/` directory no longer exists
 
 ### Task 5: Update documentation
 
-- [ ] Update CLAUDE.md if internal patterns changed
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update CLAUDE.md if internal patterns changed
+- [x] Move this plan to `docs/plans/completed/`

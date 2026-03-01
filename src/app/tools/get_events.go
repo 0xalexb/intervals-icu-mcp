@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type getEventsArgs struct {
@@ -16,7 +16,7 @@ type getEventsArgs struct {
 }
 
 // NewGetEventsTool returns a ToolRegistration for the get_events tool.
-func NewGetEventsTool(apiClient *client.Client) ToolRegistration {
+func NewGetEventsTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

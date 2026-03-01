@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/0xalexb/intervals-icu-mcp/src/app/client"
+	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/intervals"
 )
 
 type getActivityDetailsArgs struct {
@@ -15,7 +15,7 @@ type getActivityDetailsArgs struct {
 }
 
 // NewGetActivityDetailsTool returns a ToolRegistration for the get_activity_details tool.
-func NewGetActivityDetailsTool(apiClient *client.Client) ToolRegistration {
+func NewGetActivityDetailsTool(apiClient *intervals.Client) ToolRegistration {
 	return func(server *mcp.Server) {
 		mcp.AddTool(server,
 			&mcp.Tool{

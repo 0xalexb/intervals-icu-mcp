@@ -30,6 +30,7 @@ func TestModule_ProvidesServer_Streamable(t *testing.T) {
 		fx.Supply(auth.RawIssuer("http://localhost:8080")),
 		fx.Decorate(func() *intervals.Client { return testClient }),
 		Module,
+		StreamableModules,
 		fx.Populate(&server),
 		fx.Populate(fx.Annotate(&handler, fx.ParamTags(`name:"mcp"`))),
 	)
@@ -59,7 +60,6 @@ func TestModule_ProvidesServer_Stdio(t *testing.T) {
 
 	app := fxtest.New(t,
 		fx.Supply(TransportStdio),
-		fx.Supply(api.RawAllowedOrigins("")),
 		fx.Decorate(func() *intervals.Client { return testClient }),
 		Module,
 		fx.Populate(&server),

@@ -192,3 +192,80 @@ func TestNewDeleteEventTool_APIError(t *testing.T) {
 		t.Fatalf("expected IsError to be true, got: %v", result.IsError)
 	}
 }
+
+func TestNewDeleteEventTool_Validation(t *testing.T) {
+	t.Parallel()
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("API should not be called for validation errors")
+	}))
+	defer apiServer.Close()
+
+	c := intervals.NewTestClient(apiServer.URL, "test-key", "i12345", apiServer.Client())
+
+	mcpServer := mcp.NewServer(
+		&mcp.Implementation{
+			Name:    "test-server",
+			Version: "v0.0.1",
+		},
+		nil,
+	)
+
+	registration := NewDeleteEventTool(c)
+	registration(mcpServer)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+
+	ctx := context.Background()
+
+	serverCtx, serverCancel := context.WithCancel(ctx)
+	defer serverCancel()
+
+	serverDone := make(chan struct{})
+
+	go func() {
+		defer close(serverDone)
+
+		_ = mcpServer.Run(serverCtx, serverTransport)
+	}()
+
+	t.Cleanup(func() {
+		serverCancel()
+		<-serverDone
+	})
+
+	mcpClient := mcp.NewClient(
+		&mcp.Implementation{
+			Name:    "test-client",
+			Version: "v0.0.1",
+		},
+		nil,
+	)
+
+	connectCtx, connectCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer connectCancel()
+
+	session, err := mcpClient.Connect(connectCtx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("expected client to connect, got: %v", err)
+	}
+
+	t.Cleanup(func() { _ = session.Close() })
+
+	callCtx, callCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer callCancel()
+
+	result, err := session.CallTool(callCtx, &mcp.CallToolParams{
+		Name: "delete_event",
+		Arguments: map[string]any{
+			"event_id": "",
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected CallTool to succeed (error returned in result), got: %v", err)
+	}
+
+	if result.IsError != true {
+		t.Fatalf("expected IsError to be true, got: %v", result.IsError)
+	}
+}

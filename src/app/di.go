@@ -15,12 +15,9 @@ import (
 )
 
 // Module provides the MCP server and its lifecycle hooks.
+// Transport-agnostic: does not include auth/HTTP modules (see StreamableModules).
 var Module = fx.Module("app", //nolint:gochecknoglobals // fx.Module as package variable is the standard DI pattern.
-	api.Module,
-	auth.Module,
 	intervals.Module,
-	ghclient.Module,
-	rest.Module,
 	tools.Module,
 	fx.Provide(fx.Annotate(NewServer, fx.ParamTags(``, `group:"mcp_tools"`))),
 	fx.Provide(fx.Annotate(
@@ -33,4 +30,14 @@ var Module = fx.Module("app", //nolint:gochecknoglobals // fx.Module as package 
 			OnStop:  server.Stop,
 		})
 	}),
+)
+
+// StreamableModules groups the HTTP/auth DI modules needed only for streamable transport.
+//
+//nolint:gochecknoglobals // fx.Options as package variable is the standard DI pattern.
+var StreamableModules = fx.Options(
+	api.Module,
+	auth.Module,
+	ghclient.Module,
+	rest.Module,
 )

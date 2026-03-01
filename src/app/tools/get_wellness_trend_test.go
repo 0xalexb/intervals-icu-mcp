@@ -132,6 +132,20 @@ func TestNewGetWellnessTrendTool_Validation(t *testing.T) {
 		args map[string]any
 	}{
 		{
+			name: "missing oldest",
+			args: map[string]any{
+				"oldest": "",
+				"newest": "2024-06-02",
+			},
+		},
+		{
+			name: "missing newest",
+			args: map[string]any{
+				"oldest": "2024-06-01",
+				"newest": "",
+			},
+		},
+		{
 			name: "invalid oldest date format",
 			args: map[string]any{
 				"oldest": "06-01-2024",

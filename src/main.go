@@ -87,7 +87,6 @@ func main() {
 		di.WithModules(
 			app.Module,
 			fx.Supply(transportValue),
-			fx.Supply(api.RawAllowedOrigins(flags.allowedOrigins)),
 		),
 	}
 
@@ -95,6 +94,8 @@ func main() {
 		opts = append(opts,
 			di.WithHTTPListener(listenerName, listener.WithAddress(flags.address)))
 		opts = append(opts, di.WithModules(
+			app.StreamableModules,
+			fx.Supply(api.RawAllowedOrigins(flags.allowedOrigins)),
 			fx.Supply(auth.GitHubClientID(flags.githubClientID)),
 			fx.Supply(auth.GitHubClientSecret(flags.githubClientSec)),
 			fx.Supply(auth.RawAllowedUsers(flags.allowedUsers)),

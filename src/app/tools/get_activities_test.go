@@ -234,6 +234,12 @@ func TestNewGetActivitiesTool_Validation(t *testing.T) {
 		args map[string]any
 	}{
 		{
+			name: "missing oldest",
+			args: map[string]any{
+				"oldest": "",
+			},
+		},
+		{
 			name: "invalid oldest date format",
 			args: map[string]any{
 				"oldest": "01-01-2024",

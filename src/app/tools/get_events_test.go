@@ -134,6 +134,20 @@ func TestNewGetEventsTool_Validation(t *testing.T) {
 		args map[string]any
 	}{
 		{
+			name: "missing oldest",
+			args: map[string]any{
+				"oldest": "",
+				"newest": "2024-01-31",
+			},
+		},
+		{
+			name: "missing newest",
+			args: map[string]any{
+				"oldest": "2024-01-01",
+				"newest": "",
+			},
+		},
+		{
 			name: "invalid oldest date format",
 			args: map[string]any{
 				"oldest": "01-01-2024",

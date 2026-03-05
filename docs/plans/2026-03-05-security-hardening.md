@@ -62,12 +62,12 @@ Auth code is deleted before PKCE/client_id/redirect_uri validation. An attacker 
 
 JWT secret is reused for OAuth state HMAC signing. Key compromise affects both. Derive a separate state key using HKDF.
 
-- [ ] Add `golang.org/x/crypto` dependency (for `hkdf` package)
-- [ ] Add depguard allow entry for `golang.org/x/crypto/hkdf` in `.golangci.yml`
-- [ ] Add a `stateKey` field to `Handler`, derived from `jwtSecret` via `hkdf.New(sha256.New, jwtSecret, nil, []byte("oauth-state-hmac"))` during `NewHandler`
-- [ ] Update `signState` and `verifyState` to use `stateKey` instead of `jwtSecret`
-- [ ] Write tests verifying state signed with derived key validates correctly, and that JWT secret and state key produce different signatures
-- [ ] Run project test suite - must pass before task 4
+- [x] Add `golang.org/x/crypto` dependency (for `hkdf` package)
+- [x] Add depguard allow entry for `golang.org/x/crypto/hkdf` in `.golangci.yml`
+- [x] Add a `stateKey` field to `Handler`, derived from `jwtSecret` via `hkdf.New(sha256.New, jwtSecret, nil, []byte("oauth-state-hmac"))` during `NewHandler`
+- [x] Update `signState` and `verifyState` to use `stateKey` instead of `jwtSecret`
+- [x] Write tests verifying state signed with derived key validates correctly, and that JWT secret and state key produce different signatures
+- [x] Run project test suite - must pass before task 4
 
 ### Task 4: Rate limit /oauth/register (M1 - MEDIUM)
 

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"go.uber.org/fx"
+	"golang.org/x/crypto/hkdf"
 
 	"github.com/0xalexb/intervals-icu-mcp/src/app/auth"
 	"github.com/0xalexb/intervals-icu-mcp/src/app/clients/github"
@@ -72,23 +74,43 @@ type Handler struct {
 	ghClientID     auth.GitHubClientID
 	ghClientSecret auth.GitHubClientSecret
 	jwtSecret      auth.JWTSecret
+	stateKey       []byte
 	issuer         auth.Issuer
 	metadata       *auth.AuthorizationServerMetadata
 	ghClient       *github.Client
 }
 
 // NewHandler creates an OAuth Handler from DI-injected dependencies.
-func NewHandler(p HandlerParams) *Handler {
+func NewHandler(p HandlerParams) (*Handler, error) {
+	stateKey, err := deriveStateKey([]byte(p.JWTSecret))
+	if err != nil {
+		return nil, fmt.Errorf("deriving state HMAC key: %w", err)
+	}
+
 	return &Handler{
 		store:          p.Store,
 		allowedUsers:   p.AllowedUsers,
 		ghClientID:     p.GitHubClientID,
 		ghClientSecret: p.GitHubClientSecret,
 		jwtSecret:      p.JWTSecret,
+		stateKey:       stateKey,
 		issuer:         p.Issuer,
 		metadata:       p.AuthorizationServerMetadata,
 		ghClient:       p.GitHubClient,
+	}, nil
+}
+
+// deriveStateKey derives a separate HMAC key for OAuth state signing using HKDF.
+func deriveStateKey(secret []byte) ([]byte, error) {
+	reader := hkdf.New(sha256.New, secret, nil, []byte("oauth-state-hmac"))
+
+	key := make([]byte, sha256.Size)
+
+	if _, err := io.ReadFull(reader, key); err != nil {
+		return nil, fmt.Errorf("reading HKDF output: %w", err)
 	}
+
+	return key, nil
 }
 
 // authorizeState holds the original OAuth authorize parameters, serialized into
@@ -755,7 +777,7 @@ func (h *Handler) signState(authState authorizeState) (string, error) {
 
 	payload := base64.RawURLEncoding.EncodeToString(data)
 
-	mac := hmac.New(sha256.New, []byte(h.jwtSecret))
+	mac := hmac.New(sha256.New, h.stateKey)
 	mac.Write([]byte(payload))
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 
@@ -773,7 +795,7 @@ func (h *Handler) verifyState(signed string) (authorizeState, error) {
 	payload := parts[0]
 	sigEncoded := parts[1]
 
-	mac := hmac.New(sha256.New, []byte(h.jwtSecret))
+	mac := hmac.New(sha256.New, h.stateKey)
 	mac.Write([]byte(payload))
 	expectedSig := mac.Sum(nil)
 

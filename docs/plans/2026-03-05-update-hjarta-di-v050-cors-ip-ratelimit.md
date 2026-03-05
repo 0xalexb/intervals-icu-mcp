@@ -41,11 +41,11 @@ Update hjarta-di from v0.4.1 to v0.5.0 to use full-origin CORS matching (fixing 
 - Modify: `src/app/api/origins.go`
 - Modify: `src/app/api/origins_test.go`
 
-- [ ] In `router.go`, change `middleware.WithAllowedOrigins(params.Origins.Hostnames()...)` to `middleware.WithAllowedOrigins(params.Origins...)` to pass full origin URLs directly
-- [ ] Remove the `Hostnames()` method from `origins.go` (no longer used)
-- [ ] Remove all `TestAllowedOrigins_Hostnames_*` tests from `origins_test.go`
-- [ ] Add a test in `router_test.go` that verifies CORS rejects a request from a different port on the same hostname (e.g., allow `http://localhost:3000` but reject `http://localhost:9999`) - this is the core H2 fix
-- [ ] Run project test suite - must pass before task 3
+- [x] In `router.go`, change `middleware.WithAllowedOrigins(params.Origins.Hostnames()...)` to `middleware.WithAllowedOrigins(params.Origins...)` to pass full origin URLs directly
+- [x] Remove the `Hostnames()` method from `origins.go` (no longer used)
+- [x] Remove all `TestAllowedOrigins_Hostnames_*` tests from `origins_test.go`
+- [x] Add a test in `router_test.go` that verifies CORS rejects a request from a different port on the same hostname (e.g., allow `http://localhost:3000` but reject `http://localhost:9999`) - this is the core H2 fix
+- [x] Run project test suite - must pass before task 3
 
 ### Task 3: Switch to per-IP rate limiting (M4)
 

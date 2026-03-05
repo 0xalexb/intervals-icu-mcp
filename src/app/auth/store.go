@@ -134,6 +134,32 @@ func (s *Store) SaveAuthCode(code *Code) {
 	s.authCodes[code.Code] = code
 }
 
+// GetAuthCode retrieves an authorization code without deleting it.
+// Returns an error if the code is not found or has expired.
+func (s *Store) GetAuthCode(code string, now time.Time) (*Code, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ac, ok := s.authCodes[code]
+	if !ok {
+		return nil, errAuthCodeNotFound
+	}
+
+	if now.After(ac.ExpiresAt) {
+		return nil, errAuthCodeExpired
+	}
+
+	return ac, nil
+}
+
+// DeleteAuthCode deletes an authorization code by key.
+func (s *Store) DeleteAuthCode(code string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.authCodes, code)
+}
+
 // ConsumeAuthCode retrieves and deletes an authorization code (one-time use).
 // Returns an error if the code is not found or has expired.
 func (s *Store) ConsumeAuthCode(code string, now time.Time) (*Code, error) {

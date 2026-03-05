@@ -49,11 +49,11 @@ CLI flags `--github-client-secret` and `--jwt-secret` are visible in `ps aux` / 
 
 Auth code is deleted before PKCE/client_id/redirect_uri validation. An attacker who observes a code can burn it with wrong parameters. Fix by validating binding parameters before deleting.
 
-- [ ] Add `GetAuthCode(code string, now time.Time) (*Code, error)` method to `Store` that reads without deleting, returning error if not found or expired
-- [ ] Add `DeleteAuthCode(code string)` method to `Store` that deletes by key
-- [ ] Reorder `validateAuthCodeGrant` in handler.go: call `GetAuthCode` first, validate code_verifier/client_id/redirect_uri, then call `DeleteAuthCode` only after all checks pass
-- [ ] Update existing tests for the new store methods; add test for the scenario where wrong code_verifier does not consume the code
-- [ ] Run project test suite - must pass before task 3
+- [x] Add `GetAuthCode(code string, now time.Time) (*Code, error)` method to `Store` that reads without deleting, returning error if not found or expired
+- [x] Add `DeleteAuthCode(code string)` method to `Store` that deletes by key
+- [x] Reorder `validateAuthCodeGrant` in handler.go: call `GetAuthCode` first, validate code_verifier/client_id/redirect_uri, then call `DeleteAuthCode` only after all checks pass
+- [x] Update existing tests for the new store methods; add test for the scenario where wrong code_verifier does not consume the code
+- [x] Run project test suite - must pass before task 3
 
 ### Task 3: Derive separate state HMAC key (M5 - MEDIUM)
 

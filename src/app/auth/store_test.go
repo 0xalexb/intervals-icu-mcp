@@ -133,6 +133,120 @@ func TestConsumeAuthCode_NotFound(t *testing.T) {
 	}
 }
 
+func TestGetAuthCode_Success(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	code := &Code{
+		Code:                "get-code",
+		ClientID:            "client-1",
+		RedirectURI:         "http://localhost/callback",
+		CodeChallenge:       "challenge",
+		CodeChallengeMethod: "S256",
+		GitHubUsername:       "alice",
+		Scopes:              []string{"mcp"},
+		ExpiresAt:           now.Add(10 * time.Minute),
+	}
+
+	store.SaveAuthCode(code)
+
+	got, err := store.GetAuthCode("get-code", now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Code != "get-code" {
+		t.Fatalf("expected code 'get-code', got %q", got.Code)
+	}
+
+	if got.ClientID != "client-1" {
+		t.Fatalf("expected client ID 'client-1', got %q", got.ClientID)
+	}
+}
+
+func TestGetAuthCode_DoesNotDelete(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	store.SaveAuthCode(&Code{
+		Code:      "persistent-code",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(10 * time.Minute),
+	})
+
+	_, err := store.GetAuthCode("persistent-code", now)
+	if err != nil {
+		t.Fatalf("first get should succeed: %v", err)
+	}
+
+	_, err = store.GetAuthCode("persistent-code", now)
+	if err != nil {
+		t.Fatalf("second get should also succeed (not deleted): %v", err)
+	}
+}
+
+func TestGetAuthCode_NotFound(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+
+	_, err := store.GetAuthCode("nonexistent", time.Now())
+	if err != errAuthCodeNotFound {
+		t.Fatalf("expected errAuthCodeNotFound, got %v", err)
+	}
+}
+
+func TestGetAuthCode_Expired(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	past := time.Now().Add(-10 * time.Minute)
+
+	store.SaveAuthCode(&Code{
+		Code:      "expired-get-code",
+		ClientID:  "client-1",
+		ExpiresAt: past,
+	})
+
+	_, err := store.GetAuthCode("expired-get-code", time.Now())
+	if err != errAuthCodeExpired {
+		t.Fatalf("expected errAuthCodeExpired, got %v", err)
+	}
+}
+
+func TestDeleteAuthCode(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	store.SaveAuthCode(&Code{
+		Code:      "delete-me",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(10 * time.Minute),
+	})
+
+	store.DeleteAuthCode("delete-me")
+
+	_, err := store.GetAuthCode("delete-me", now)
+	if err != errAuthCodeNotFound {
+		t.Fatalf("expected errAuthCodeNotFound after delete, got %v", err)
+	}
+}
+
+func TestDeleteAuthCode_Nonexistent(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+
+	// Should not panic on nonexistent key.
+	store.DeleteAuthCode("does-not-exist")
+}
+
 func TestSaveRefreshToken_And_ConsumeRefreshToken(t *testing.T) {
 	t.Parallel()
 

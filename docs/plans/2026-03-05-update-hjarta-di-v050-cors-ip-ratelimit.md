@@ -53,12 +53,12 @@ Update hjarta-di from v0.4.1 to v0.5.0 to use full-origin CORS matching (fixing 
 - Modify: `src/app/api/router.go`
 - Modify: `src/app/api/router_test.go`
 
-- [ ] Add `"time"` import to `router.go`
-- [ ] Replace global `middleware.RateLimit(rateLimitRate, rateLimitBurst)` with `middleware.PerIPRateLimit(middleware.WithRateLimit(rateLimitRate, time.Second), middleware.WithBurst(rateLimitBurst))`
-- [ ] Replace register endpoint `middleware.RateLimit(registerRateLimitRate, registerRateLimitBurst)` with `middleware.PerIPRateLimit(middleware.WithRateLimit(registerRateLimitRate, time.Second), middleware.WithBurst(registerRateLimitBurst))`
-- [ ] Update `TestNewRouter_RateLimitExceeded` to match per-IP sliding window behavior (adjust request count to exhaust the per-IP limit: base rate + burst within the window)
-- [ ] Update `TestNewRouter_RegisterRateLimitExceeded` similarly
-- [ ] Run project test suite - must pass before task 4
+- [x] Add `"time"` import to `router.go`
+- [x] Replace global `middleware.RateLimit(rateLimitRate, rateLimitBurst)` with `middleware.PerIPRateLimit(middleware.WithRateLimit(rateLimitRate, time.Second), middleware.WithBurst(rateLimitBurst))`
+- [x] Replace register endpoint `middleware.RateLimit(registerRateLimitRate, registerRateLimitBurst)` with `middleware.PerIPRateLimit(middleware.WithRateLimit(registerRateLimitRate, time.Second), middleware.WithBurst(registerRateLimitBurst))`
+- [x] Update `TestNewRouter_RateLimitExceeded` to match per-IP sliding window behavior (adjust request count to exhaust the per-IP limit: base rate + burst within the window)
+- [x] Update `TestNewRouter_RegisterRateLimitExceeded` similarly
+- [x] Run project test suite - must pass before task 4
 
 ### Task 4: Verify acceptance criteria
 

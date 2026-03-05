@@ -3,6 +3,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/0xalexb/hjarta-di/listener/middleware"
 	"github.com/go-pkgz/routegroup"
@@ -46,7 +47,7 @@ func NewRouter(params RouterParams) http.Handler {
 		middleware.Recovery(),
 		middleware.RequestID(),
 		middleware.Logging(),
-		middleware.RateLimit(rateLimitRate, rateLimitBurst),
+		middleware.PerIPRateLimit(middleware.WithRateLimit(rateLimitRate, time.Second), middleware.WithBurst(rateLimitBurst)),
 		middleware.MaxRequestSize(maxRequestBodySize),
 		middleware.CORS(
 			middleware.WithAllowedOrigins(params.Origins...),
@@ -74,7 +75,7 @@ func NewRouter(params RouterParams) http.Handler {
 	router.Handle("POST /oauth/token",
 		http.HandlerFunc(params.AuthHandler.HandleToken))
 
-	registerRateLimit := middleware.RateLimit(registerRateLimitRate, registerRateLimitBurst)
+	registerRateLimit := middleware.PerIPRateLimit(middleware.WithRateLimit(registerRateLimitRate, time.Second), middleware.WithBurst(registerRateLimitBurst))
 	router.Handle("POST /oauth/register",
 		registerRateLimit(http.HandlerFunc(params.AuthHandler.HandleRegister)))
 

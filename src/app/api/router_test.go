@@ -415,6 +415,34 @@ func TestNewRouter_RateLimitExceeded(t *testing.T) {
 	}
 }
 
+func TestNewRouter_RegisterRateLimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
+
+	// Exhaust the register rate limit burst (5 requests).
+	for range 5 {
+		req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+	}
+
+	// The next request should be rate-limited.
+	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 for register after burst exhaustion, got %d", rec.Code)
+	}
+}
+
 func TestNewRouter_MaxRequestSizeRejects(t *testing.T) {
 	t.Parallel()
 

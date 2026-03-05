@@ -76,10 +76,10 @@ JWT secret is reused for OAuth state HMAC signing. Key compromise affects both. 
 
 `POST /oauth/register` is unauthenticated and can fill 1000 client slots in seconds. Add a dedicated tight rate limiter for the registration endpoint.
 
-- [ ] Create a `registerRateLimit` middleware using hjarta-di's `middleware.RateLimit` with a low rate (e.g., 2 req/s, burst 5) applied only to the `/oauth/register` route
-- [ ] Wrap the register handler with this per-endpoint rate limiter in `NewRouter`
-- [ ] Write test verifying rate limiting kicks in for registration endpoint
-- [ ] Run project test suite - must pass before task 5
+- [x] Create a `registerRateLimit` middleware using hjarta-di's `middleware.RateLimit` with a low rate (e.g., 2 req/s, burst 5) applied only to the `/oauth/register` route
+- [x] Wrap the register handler with this per-endpoint rate limiter in `NewRouter`
+- [x] Write test verifying rate limiting kicks in for registration endpoint
+- [x] Run project test suite - must pass before task 5
 
 ### Task 5: Cap auth codes and refresh tokens (M3 - MEDIUM)
 

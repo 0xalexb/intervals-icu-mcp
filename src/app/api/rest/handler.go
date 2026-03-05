@@ -272,7 +272,7 @@ func validateScope(raw string) (string, *oauthValidationError) {
 	for s := range strings.FieldsSeq(scope) {
 		if s != scopeMCP {
 			return "", &oauthValidationError{
-				"invalid_scope", "unsupported scope: " + s, http.StatusBadRequest,
+				"invalid_scope", "only 'mcp' scope is supported", http.StatusBadRequest,
 			}
 		}
 	}
@@ -506,103 +506,151 @@ func (h *Handler) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) validateAuthCodeGrant(r *http.Request) (*auth.Code, *oauthValidationError) {
-	code := r.FormValue("code")
-	if code == "" {
-		return nil, &oauthValidationError{
-			"invalid_request", "code is required", http.StatusBadRequest,
-		}
+	p, valErr := extractAuthCodeParams(r)
+	if valErr != nil {
+		return nil, valErr
 	}
 
-	codeVerifier := r.FormValue("code_verifier")
-	if codeVerifier == "" {
-		return nil, &oauthValidationError{
-			"invalid_request", "code_verifier is required (PKCE mandatory)", http.StatusBadRequest,
+	authCode, err := h.store.ValidateAndConsumeAuthCode(p.code, time.Now(), func(ac *auth.Code) error {
+		if !verifyCodeChallenge(ac.CodeChallenge, p.codeVerifier) {
+			return &oauthValidationError{
+				"invalid_grant", "code_verifier does not match code_challenge", http.StatusBadRequest,
+			}
 		}
-	}
 
-	clientID := r.FormValue("client_id")
-	if clientID == "" {
-		return nil, &oauthValidationError{
-			"invalid_request", "client_id is required", http.StatusBadRequest,
+		if p.clientID != ac.ClientID {
+			return &oauthValidationError{
+				"invalid_grant", "client_id mismatch", http.StatusBadRequest,
+			}
 		}
-	}
 
-	redirectURI := r.FormValue("redirect_uri")
-	if redirectURI == "" {
-		return nil, &oauthValidationError{
-			"invalid_request", "redirect_uri is required", http.StatusBadRequest,
+		if p.redirectURI != ac.RedirectURI {
+			return &oauthValidationError{
+				"invalid_grant", "redirect_uri mismatch", http.StatusBadRequest,
+			}
 		}
-	}
 
-	authCode, err := h.store.GetAuthCode(code, time.Now())
+		return nil
+	})
 	if err != nil {
+		var valErr *oauthValidationError
+		if errors.As(err, &valErr) {
+			return nil, valErr
+		}
+
 		return nil, &oauthValidationError{
 			"invalid_grant", "authorization code is invalid or expired", http.StatusBadRequest,
 		}
 	}
 
-	if !verifyCodeChallenge(authCode.CodeChallenge, codeVerifier) {
-		return nil, &oauthValidationError{
-			"invalid_grant", "code_verifier does not match code_challenge", http.StatusBadRequest,
-		}
-	}
-
-	if clientID != authCode.ClientID {
-		return nil, &oauthValidationError{
-			"invalid_grant", "client_id mismatch", http.StatusBadRequest,
-		}
-	}
-
-	if redirectURI != authCode.RedirectURI {
-		return nil, &oauthValidationError{
-			"invalid_grant", "redirect_uri mismatch", http.StatusBadRequest,
-		}
-	}
-
-	h.store.DeleteAuthCode(code)
-
 	return authCode, nil
 }
 
+// authCodeParams holds the validated form parameters for an authorization code grant.
+type authCodeParams struct {
+	code, codeVerifier, clientID, redirectURI string
+}
+
+func extractAuthCodeParams(r *http.Request) (authCodeParams, *oauthValidationError) {
+	p := authCodeParams{
+		code:         r.FormValue("code"),
+		codeVerifier: r.FormValue("code_verifier"),
+		clientID:     r.FormValue("client_id"),
+		redirectURI:  r.FormValue("redirect_uri"),
+	}
+
+	switch {
+	case p.code == "":
+		return p, &oauthValidationError{"invalid_request", "code is required", http.StatusBadRequest}
+	case p.codeVerifier == "":
+		return p, &oauthValidationError{
+			"invalid_request", "code_verifier is required (PKCE mandatory)", http.StatusBadRequest,
+		}
+	case p.clientID == "":
+		return p, &oauthValidationError{"invalid_request", "client_id is required", http.StatusBadRequest}
+	case p.redirectURI == "":
+		return p, &oauthValidationError{"invalid_request", "redirect_uri is required", http.StatusBadRequest}
+	}
+
+	return p, nil
+}
+
 func (h *Handler) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request) {
-	tokenValue := r.FormValue("refresh_token")
-	if tokenValue == "" {
-		writeOAuthError(w, "invalid_request", "refresh_token is required", http.StatusBadRequest)
-
-		return
-	}
-
-	clientID := r.FormValue("client_id")
-	if clientID == "" {
-		writeOAuthError(w, "invalid_request", "client_id is required", http.StatusBadRequest)
-
-		return
-	}
-
-	client, err := h.store.GetClient(clientID)
-	if err != nil {
-		writeOAuthError(w, "invalid_grant", "unknown client", http.StatusBadRequest)
-
-		return
-	}
-
-	if !slices.Contains(client.GrantTypes, grantTypeRefreshToken) {
-		writeOAuthError(w, "unauthorized_client",
-			"client is not registered for refresh_token grant", http.StatusBadRequest)
+	tokenValue, clientID, valErr := h.validateRefreshTokenGrant(r)
+	if valErr != nil {
+		writeOAuthError(w, valErr.code, valErr.description, valErr.status)
 
 		return
 	}
 
 	now := time.Now()
 
-	refreshTok, err := h.store.ConsumeRefreshToken(tokenValue, clientID, now)
+	newRefreshTokenValue, err := auth.IssueRefreshToken()
 	if err != nil {
+		writeOAuthError(w, "server_error", "internal error", http.StatusInternalServerError)
+
+		return
+	}
+
+	newRefreshToken := &auth.RefreshToken{
+		Token:     newRefreshTokenValue,
+		ExpiresAt: now.Add(refreshTokenTTL),
+	}
+
+	refreshTok, err := h.store.RotateRefreshToken(tokenValue, clientID, now, newRefreshToken)
+	if err != nil {
+		if errors.Is(err, auth.ErrMaxRefreshTokensReached) {
+			writeOAuthError(w, "server_error", "too many active refresh tokens", http.StatusServiceUnavailable)
+
+			return
+		}
+
 		writeOAuthError(w, "invalid_grant", "refresh token is invalid or expired", http.StatusBadRequest)
 
 		return
 	}
 
-	h.issueTokenPair(w, refreshTok.GitHubUsername, refreshTok.ClientID, refreshTok.Scopes, client.GrantTypes)
+	accessToken, err := auth.IssueAccessToken(
+		h.jwtSecret, h.issuer, accessTokenTTL, refreshTok.GitHubUsername, refreshTok.Scopes,
+	)
+	if err != nil {
+		writeOAuthError(w, "server_error", "internal error", http.StatusInternalServerError)
+
+		return
+	}
+
+	writeTokenResponse(w, accessToken, newRefreshTokenValue, int(accessTokenTTL.Seconds()))
+}
+
+func (h *Handler) validateRefreshTokenGrant(r *http.Request) (string, string, *oauthValidationError) {
+	tokenValue := r.FormValue("refresh_token")
+	if tokenValue == "" {
+		return "", "", &oauthValidationError{
+			"invalid_request", "refresh_token is required", http.StatusBadRequest,
+		}
+	}
+
+	clientID := r.FormValue("client_id")
+	if clientID == "" {
+		return "", "", &oauthValidationError{
+			"invalid_request", "client_id is required", http.StatusBadRequest,
+		}
+	}
+
+	client, err := h.store.GetClient(clientID)
+	if err != nil {
+		return "", "", &oauthValidationError{
+			"invalid_grant", "unknown client", http.StatusBadRequest,
+		}
+	}
+
+	if !slices.Contains(client.GrantTypes, grantTypeRefreshToken) {
+		return "", "", &oauthValidationError{
+			"unauthorized_client", "client is not registered for refresh_token grant", http.StatusBadRequest,
+		}
+	}
+
+	return tokenValue, clientID, nil
 }
 
 func (h *Handler) issueTokenPair(
@@ -894,18 +942,7 @@ func writeOAuthError(w http.ResponseWriter, errCode, description string, status 
 // sanitizeGitHubError replaces unrecognized OAuth error codes and descriptions
 // returned by GitHub with safe defaults to prevent content injection.
 func sanitizeGitHubError(errCode, description string) (string, string) {
-	knownErrors := map[string]bool{
-		"access_denied":             true,
-		"temporarily_unavailable":   true,
-		"server_error":              true,
-		"invalid_request":           true,
-		"unauthorized_client":       true,
-		"unsupported_response_type": true,
-		"invalid_scope":             true,
-		"interaction_required":      true,
-	}
-
-	if !knownErrors[errCode] {
+	if !isKnownOAuthError(errCode) {
 		return "server_error", genericErrorDescription
 	}
 
@@ -949,4 +986,16 @@ func parseScopes(scope string) []string {
 	}
 
 	return strings.Fields(scope)
+}
+
+// isKnownOAuthError returns true if the error code is a recognized OAuth error code
+// that GitHub may return during the authorization flow.
+func isKnownOAuthError(code string) bool {
+	switch code {
+	case "access_denied", "temporarily_unavailable", "server_error", "invalid_request",
+		"unauthorized_client", "unsupported_response_type", "invalid_scope", "interaction_required":
+		return true
+	default:
+		return false
+	}
 }

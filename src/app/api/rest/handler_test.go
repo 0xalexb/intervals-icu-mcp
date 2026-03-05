@@ -787,7 +787,7 @@ func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
 	codeVerifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "test-auth-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -796,7 +796,9 @@ func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -860,7 +862,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifier(t *testing.T) {
 
 	codeChallenge := computeS256Challenge("correct-verifier")
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "test-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -869,7 +871,9 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifier(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -897,7 +901,7 @@ func TestHandleToken_AuthorizationCodeGrant_ExpiredCode(t *testing.T) {
 
 	h := newTestHandler("", "")
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "expired-code",
 		ClientID:            "my-client",
 		CodeChallenge:       "challenge",
@@ -905,7 +909,9 @@ func TestHandleToken_AuthorizationCodeGrant_ExpiredCode(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(-1 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -937,7 +943,7 @@ func TestHandleToken_AuthorizationCodeGrant_CodeReuse(t *testing.T) {
 	codeVerifier := "my-verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "one-time-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -946,7 +952,9 @@ func TestHandleToken_AuthorizationCodeGrant_CodeReuse(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -985,7 +993,7 @@ func TestHandleToken_AuthorizationCodeGrant_ClientIDMismatch(t *testing.T) {
 	codeVerifier := "verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "test-code",
 		ClientID:            "original-client",
 		CodeChallenge:       codeChallenge,
@@ -993,7 +1001,9 @@ func TestHandleToken_AuthorizationCodeGrant_ClientIDMismatch(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -1025,7 +1035,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifierDoesNotConsumeCode(t *t
 	codeVerifier := "correct-verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "resilient-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -1034,7 +1044,9 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifierDoesNotConsumeCode(t *t
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	// First attempt with wrong verifier should fail but NOT consume the code.
 	wrongForm := url.Values{
@@ -1083,13 +1095,15 @@ func TestHandleToken_RefreshTokenGrant(t *testing.T) {
 	h := newTestHandler("", "")
 	saveTestClient(t, h.store, "my-client", []string{"authorization_code", "refresh_token"})
 
-	h.store.SaveRefreshToken(&auth.RefreshToken{
+	if err := h.store.SaveRefreshToken(&auth.RefreshToken{
 		Token:         "test-refresh-token",
 		ClientID:      "my-client",
 		GitHubUsername: "alice",
 		Scopes:        []string{"mcp"},
 		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
@@ -1131,13 +1145,15 @@ func TestHandleToken_RefreshTokenGrant_TokenRotation(t *testing.T) {
 	h := newTestHandler("", "")
 	saveTestClient(t, h.store, "my-client", []string{"authorization_code", "refresh_token"})
 
-	h.store.SaveRefreshToken(&auth.RefreshToken{
+	if err := h.store.SaveRefreshToken(&auth.RefreshToken{
 		Token:         "original-rt",
 		ClientID:      "my-client",
 		GitHubUsername: "alice",
 		Scopes:        []string{"mcp"},
 		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
@@ -1178,13 +1194,15 @@ func TestHandleToken_RefreshTokenGrant_ExpiredToken(t *testing.T) {
 	h := newTestHandler("", "")
 	saveTestClient(t, h.store, "my-client", []string{"authorization_code", "refresh_token"})
 
-	h.store.SaveRefreshToken(&auth.RefreshToken{
+	if err := h.store.SaveRefreshToken(&auth.RefreshToken{
 		Token:         "expired-rt",
 		ClientID:      "my-client",
 		GitHubUsername: "alice",
 		Scopes:        []string{"mcp"},
 		ExpiresAt:     time.Now().Add(-1 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
@@ -1477,13 +1495,15 @@ func TestHandleToken_RefreshTokenGrant_ClientWithoutRefreshGrant(t *testing.T) {
 	h := newTestHandler("", "")
 	saveTestClient(t, h.store, "auth-only-client", []string{"authorization_code"})
 
-	h.store.SaveRefreshToken(&auth.RefreshToken{
+	if err := h.store.SaveRefreshToken(&auth.RefreshToken{
 		Token:         "some-refresh-token",
 		ClientID:      "auth-only-client",
 		GitHubUsername: "alice",
 		Scopes:        []string{"mcp"},
 		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
@@ -1513,7 +1533,7 @@ func TestHandleToken_AuthorizationCodeGrant_NoRefreshTokenWhenNotRegistered(t *t
 	codeVerifier := "verifier-for-no-refresh"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "code-no-refresh",
 		ClientID:            "auth-only-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -1522,7 +1542,9 @@ func TestHandleToken_AuthorizationCodeGrant_NoRefreshTokenWhenNotRegistered(t *t
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -2054,7 +2076,7 @@ func TestHandleToken_AuthorizationCodeGrant_ClientWithoutAuthCodeGrant(t *testin
 	codeChallenge := computeS256Challenge(codeVerifier)
 
 	// Manually save an auth code for this client (bypasses HandleAuthorize check).
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "code-for-refresh-only",
 		ClientID:            "refresh-only",
 		RedirectURI:         "https://client.example.com/callback",
@@ -2063,7 +2085,9 @@ func TestHandleToken_AuthorizationCodeGrant_ClientWithoutAuthCodeGrant(t *testin
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -2194,7 +2218,7 @@ func TestHandleToken_AuthorizationCodeGrant_RedirectURIMismatch(t *testing.T) {
 	codeVerifier := "redirect-mismatch-verifier"
 	codeChallenge := computeS256Challenge(codeVerifier)
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err := h.store.SaveAuthCode(&auth.Code{
 		Code:                "redirect-mismatch-code",
 		ClientID:            "my-client",
 		RedirectURI:         "https://client.example.com/callback",
@@ -2203,7 +2227,9 @@ func TestHandleToken_AuthorizationCodeGrant_RedirectURIMismatch(t *testing.T) {
 		GitHubUsername:      "alice",
 		Scopes:              []string{"mcp"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
@@ -2256,13 +2282,15 @@ func TestHandleToken_RefreshTokenGrant_ClientIDMismatch(t *testing.T) {
 	saveTestClient(t, h.store, "client-a", []string{"authorization_code", "refresh_token"})
 	saveTestClient(t, h.store, "client-b", []string{"authorization_code", "refresh_token"})
 
-	h.store.SaveRefreshToken(&auth.RefreshToken{
+	if err := h.store.SaveRefreshToken(&auth.RefreshToken{
 		Token:         "rt-for-client-a",
 		ClientID:      "client-a",
 		GitHubUsername: "alice",
 		Scopes:        []string{"mcp"},
 		ExpiresAt:     time.Now().Add(30 * 24 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	form := url.Values{
 		"grant_type":    {"refresh_token"},

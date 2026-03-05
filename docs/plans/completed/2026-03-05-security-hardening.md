@@ -129,5 +129,5 @@ GitHub's `error` and `error_description` query parameters are forwarded verbatim
 
 ### Task 9: Update documentation
 
-- [ ] Update CLAUDE.md if internal patterns changed (new store methods, new dependency)
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update CLAUDE.md if internal patterns changed (new store methods, new dependency)
+- [x] Move this plan to `docs/plans/completed/`

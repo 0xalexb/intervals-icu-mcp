@@ -16,6 +16,8 @@ Set the following environment variables before running the server:
 |----------|----------|-------------|
 | `INTERVALS_API_KEY` | Yes | Your Intervals.icu API key (used for Basic auth) |
 | `INTERVALS_ATHLETE_ID` | Yes | Your Intervals.icu athlete ID (e.g., `i12345`) |
+| `GITHUB_CLIENT_SECRET` | No | GitHub OAuth app client secret (fallback when `--github-client-secret` flag is empty) |
+| `JWT_SECRET` | No | HMAC-SHA256 signing key for JWT tokens (fallback when `--jwt-secret` flag is empty) |
 
 ## Usage
 
@@ -42,7 +44,7 @@ The MCP endpoint is served at `/mcp` (not configurable). When using the streamab
 - Structured request logging
 - Rate limiting (100 requests/second, burst 200)
 - Max request body size (1 MB)
-- CORS (configurable origins via `--allowed-origins` as full URLs, GET/POST/DELETE/OPTIONS methods)
+- CORS (configurable origins via `--allowed-origins` as full URLs, GET/POST/OPTIONS methods)
 - Expose-Headers (`Access-Control-Expose-Headers: Mcp-Session-Id` for CORS responses)
 - Gzip compression
 
@@ -52,9 +54,9 @@ The MCP endpoint is served at `/mcp` (not configurable). When using the streamab
 | `--address` | `127.0.0.1:8080` | Listen address for streamable HTTP transport (e.g., `127.0.0.1:8080` or `:9000`) |
 | `--allowed-origins` | _(empty)_ | Comma-separated list of allowed CORS origins as full URLs (e.g., `http://localhost:3000,https://example.com`) |
 | `--github-client-id` | _(empty)_ | GitHub OAuth app client ID (required for streamable) |
-| `--github-client-secret` | _(empty)_ | GitHub OAuth app client secret |
+| `--github-client-secret` | _(empty)_ | GitHub OAuth app client secret (falls back to `GITHUB_CLIENT_SECRET` env var) |
 | `--allowed-users` | _(empty)_ | Comma-separated allowed GitHub usernames (empty = allow all authenticated users) |
-| `--jwt-secret` | _(empty)_ | HMAC-SHA256 signing key for JWT tokens (auto-generated if empty) |
+| `--jwt-secret` | _(empty)_ | HMAC-SHA256 signing key for JWT tokens (auto-generated if empty; falls back to `JWT_SECRET` env var) |
 | `--auth-issuer` | _(empty)_ | Issuer URL for the OAuth authorization server (required for streamable). Must be a full URL with http/https scheme |
 
 ### Authentication (streamable transport)
@@ -72,7 +74,7 @@ OAuth endpoints exposed in streamable mode:
 | `/oauth/authorize` | GET | Start OAuth authorization flow (redirects to GitHub) |
 | `/oauth/callback` | GET | GitHub OAuth callback |
 | `/oauth/token` | POST | Token exchange (authorization_code and refresh_token grants) |
-| `/oauth/register` | POST | Dynamic client registration (RFC 7591) |
+| `/oauth/register` | POST | Dynamic client registration (RFC 7591, rate-limited to 2 req/s burst 5) |
 
 Print version:
 

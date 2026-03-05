@@ -14,13 +14,15 @@
 
   Mitigation: Bind the authorization request to a browser session (server-side nonce in a signed cookie or session store), or add a server-rendered consent page before the GitHub redirect.
 
-  1. CORS Hostname Matching Strips Port
+  1. CORS Hostname Matching Strips Port [RESOLVED]
 
   Files: origins.go:57-69, router.go:49
 
   Hostnames() strips the port, so allowing <http://localhost:3000> also allows <http://localhost:9999>. Any process on the same host can make cross-origin requests to /mcp.
 
   Mitigation: Match full origin (scheme + host + port) instead of hostname only.
+
+  Resolution: Updated hjarta-di to v0.5.0 which supports full origin matching. CORS middleware now receives full origin URLs (scheme+host+port) directly via WithAllowedOrigins instead of stripped hostnames. The Hostnames() method was removed.
 
   1. Credentials Visible in Process Listing
 
@@ -57,13 +59,15 @@
 
   Mitigation: Add caps similar to maxClients, or add per-user limits.
 
-  1. Global Rate Limiting Is Not Per-IP
+  1. Global Rate Limiting Is Not Per-IP [RESOLVED]
 
   File: router.go:46
 
   Single global token bucket — one attacker consuming 100 req/s starves all other users.
 
   Mitigation: Per-IP rate limiting.
+
+  Resolution: Updated hjarta-di to v0.5.0 which provides PerIPRateLimit middleware with sliding window per-IP tracking. Replaced global RateLimit with PerIPRateLimit for both the main middleware stack and the /oauth/register endpoint.
 
   1. JWT Secret Dual-Use for State HMAC
 

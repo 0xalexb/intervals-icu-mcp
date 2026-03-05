@@ -68,6 +68,6 @@ Update hjarta-di from v0.4.1 to v0.5.0 to use full-origin CORS matching (fixing 
 
 ### Task 5: Update documentation
 
-- [ ] Update `CLAUDE.md`: update hjarta-di version, CORS description (full origin matching instead of hostname-based), rate limiting description (per-IP instead of global), remove `Hostnames()` references
-- [ ] Update `docs/security_report.md`: mark H2 and M4 as resolved
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update `CLAUDE.md`: update hjarta-di version, CORS description (full origin matching instead of hostname-based), rate limiting description (per-IP instead of global), remove `Hostnames()` references
+- [x] Update `docs/security_report.md`: mark H2 and M4 as resolved
+- [x] Move this plan to `docs/plans/completed/`

@@ -123,9 +123,9 @@ GitHub's `error` and `error_description` query parameters are forwarded verbatim
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] Manual test: start server with `--transport streamable` using env vars for secrets, verify startup succeeds
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
+- [x] Manual test: start server with `--transport streamable` using env vars for secrets, verify startup succeeds
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
 
 ### Task 9: Update documentation
 

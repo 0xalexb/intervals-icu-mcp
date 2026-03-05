@@ -19,6 +19,9 @@ const (
 	rateLimitBurst     = 200
 	maxRequestBodySize = 1048576
 	corsMaxAge         = 86400
+
+	registerRateLimitRate  = 2
+	registerRateLimitBurst = 5
 )
 
 // RouterParams holds the DI-injected dependencies for the HTTP router.
@@ -70,8 +73,9 @@ func NewRouter(params RouterParams) http.Handler {
 		http.HandlerFunc(params.AuthHandler.HandleCallback))
 	router.Handle("POST /oauth/token",
 		http.HandlerFunc(params.AuthHandler.HandleToken))
+	registerRateLimit := middleware.RateLimit(registerRateLimitRate, registerRateLimitBurst)
 	router.Handle("POST /oauth/register",
-		http.HandlerFunc(params.AuthHandler.HandleRegister))
+		registerRateLimit(http.HandlerFunc(params.AuthHandler.HandleRegister)))
 
 	bearerMiddleware := auth.RequireBearerToken(
 		params.TokenVerifier,

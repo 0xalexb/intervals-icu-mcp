@@ -823,6 +823,67 @@ func TestHandleToken_AuthorizationCodeGrant_ClientIDMismatch(t *testing.T) {
 	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_grant")
 }
 
+func TestHandleToken_AuthorizationCodeGrant_WrongVerifierDoesNotConsumeCode(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+	saveTestClient(t, h.store, "my-client", []string{"authorization_code", "refresh_token"})
+
+	codeVerifier := "correct-verifier"
+	codeChallenge := computeS256Challenge(codeVerifier)
+
+	h.store.SaveAuthCode(&auth.Code{
+		Code:                "resilient-code",
+		ClientID:            "my-client",
+		RedirectURI:         "https://client.example.com/callback",
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: "S256",
+		GitHubUsername:      "alice",
+		Scopes:              []string{"mcp"},
+		ExpiresAt:           time.Now().Add(10 * time.Minute),
+	})
+
+	// First attempt with wrong verifier should fail but NOT consume the code.
+	wrongForm := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"resilient-code"},
+		"code_verifier": {"wrong-verifier"},
+		"client_id":     {"my-client"},
+		"redirect_uri":  {"https://client.example.com/callback"},
+	}
+
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(wrongForm.Encode()))
+	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec1, req1)
+
+	if rec1.Code != http.StatusBadRequest {
+		t.Fatalf("wrong verifier: expected 400, got %d", rec1.Code)
+	}
+
+	assertOAuthErrorCode(t, rec1.Body.Bytes(), "invalid_grant")
+
+	// Second attempt with correct verifier should succeed because the code was not consumed.
+	correctForm := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {"resilient-code"},
+		"code_verifier": {codeVerifier},
+		"client_id":     {"my-client"},
+		"redirect_uri":  {"https://client.example.com/callback"},
+	}
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(correctForm.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h.HandleToken(rec2, req2)
+
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("correct verifier after wrong attempt: expected 200, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+}
+
 func TestHandleToken_RefreshTokenGrant(t *testing.T) {
 	t.Parallel()
 

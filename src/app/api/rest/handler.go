@@ -504,7 +504,7 @@ func (h *Handler) validateAuthCodeGrant(r *http.Request) (*auth.Code, *oauthVali
 		}
 	}
 
-	authCode, err := h.store.ConsumeAuthCode(code, time.Now())
+	authCode, err := h.store.GetAuthCode(code, time.Now())
 	if err != nil {
 		return nil, &oauthValidationError{
 			"invalid_grant", "authorization code is invalid or expired", http.StatusBadRequest,
@@ -528,6 +528,8 @@ func (h *Handler) validateAuthCodeGrant(r *http.Request) (*auth.Code, *oauthVali
 			"invalid_grant", "redirect_uri mismatch", http.StatusBadRequest,
 		}
 	}
+
+	h.store.DeleteAuthCode(code)
 
 	return authCode, nil
 }

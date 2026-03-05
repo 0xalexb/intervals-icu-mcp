@@ -62,9 +62,9 @@ Update hjarta-di from v0.4.1 to v0.5.0 to use full-origin CORS matching (fixing 
 
 ### Task 4: Verify acceptance criteria
 
-- [ ] Manual test: start server with `--transport streamable` and verify CORS rejects different-port origins
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
+- [x] Manual test: start server with `--transport streamable` and verify CORS rejects different-port origins
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`
 
 ### Task 5: Update documentation
 

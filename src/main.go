@@ -59,7 +59,21 @@ func parseFlags() cliFlags {
 		"Issuer URL for the OAuth authorization server (required for streamable).")
 	flag.Parse()
 
+	resolveSecretsFromEnv(&flags)
+
 	return flags
+}
+
+// resolveSecretsFromEnv fills in empty secret fields from environment variables.
+// This allows secrets to be provided without CLI flag exposure in process listings.
+func resolveSecretsFromEnv(flags *cliFlags) {
+	if flags.githubClientSec == "" {
+		flags.githubClientSec = os.Getenv("GITHUB_CLIENT_SECRET")
+	}
+
+	if flags.jwtSecret == "" {
+		flags.jwtSecret = os.Getenv("JWT_SECRET")
+	}
 }
 
 func main() {

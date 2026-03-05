@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -45,4 +46,57 @@ func TestVersionFlag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveSecretsFromEnv(t *testing.T) {
+	t.Run("env vars fill empty flags", func(t *testing.T) {
+		t.Setenv("GITHUB_CLIENT_SECRET", "gh-secret-from-env")
+		t.Setenv("JWT_SECRET", "jwt-secret-from-env")
+
+		flags := cliFlags{}
+		resolveSecretsFromEnv(&flags)
+
+		if flags.githubClientSec != "gh-secret-from-env" {
+			t.Errorf("expected githubClientSec %q, got %q", "gh-secret-from-env", flags.githubClientSec)
+		}
+
+		if flags.jwtSecret != "jwt-secret-from-env" {
+			t.Errorf("expected jwtSecret %q, got %q", "jwt-secret-from-env", flags.jwtSecret)
+		}
+	})
+
+	t.Run("cli flags take precedence over env vars", func(t *testing.T) {
+		t.Setenv("GITHUB_CLIENT_SECRET", "gh-secret-from-env")
+		t.Setenv("JWT_SECRET", "jwt-secret-from-env")
+
+		flags := cliFlags{
+			githubClientSec: "gh-secret-from-flag",
+			jwtSecret:       "jwt-secret-from-flag",
+		}
+		resolveSecretsFromEnv(&flags)
+
+		if flags.githubClientSec != "gh-secret-from-flag" {
+			t.Errorf("expected githubClientSec %q, got %q", "gh-secret-from-flag", flags.githubClientSec)
+		}
+
+		if flags.jwtSecret != "jwt-secret-from-flag" {
+			t.Errorf("expected jwtSecret %q, got %q", "jwt-secret-from-flag", flags.jwtSecret)
+		}
+	})
+
+	t.Run("unset env vars leave flags empty", func(t *testing.T) {
+		os.Unsetenv("GITHUB_CLIENT_SECRET")
+		os.Unsetenv("JWT_SECRET")
+
+		flags := cliFlags{}
+		resolveSecretsFromEnv(&flags)
+
+		if flags.githubClientSec != "" {
+			t.Errorf("expected empty githubClientSec, got %q", flags.githubClientSec)
+		}
+
+		if flags.jwtSecret != "" {
+			t.Errorf("expected empty jwtSecret, got %q", flags.jwtSecret)
+		}
+	})
 }

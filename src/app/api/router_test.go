@@ -398,7 +398,8 @@ func TestNewRouter_RateLimitExceeded(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	for range 200 {
+	// Per-IP sliding window: effective limit = rateLimitRate + rateLimitBurst = 100 + 200 = 300.
+	for range 300 {
 		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
@@ -424,8 +425,8 @@ func TestNewRouter_RegisterRateLimitExceeded(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	// Exhaust the register rate limit burst (5 requests).
-	for range 5 {
+	// Per-IP sliding window: effective limit = registerRateLimitRate + registerRateLimitBurst = 2 + 5 = 7.
+	for range 7 {
 		req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -439,7 +440,7 @@ func TestNewRouter_RegisterRateLimitExceeded(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected 429 for register after burst exhaustion, got %d", rec.Code)
+		t.Fatalf("expected 429 for register after per-IP limit exhaustion, got %d", rec.Code)
 	}
 }
 

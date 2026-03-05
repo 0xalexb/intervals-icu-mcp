@@ -51,6 +51,22 @@ var (
 	errRedirectURIHasFragment    = errors.New("redirect_uri must not contain a fragment")
 	errRedirectURINotLoopback    = errors.New("redirect_uri with http scheme is only allowed for loopback addresses")
 	errUnsupportedGrantType = errors.New("unsupported grant_type")
+
+	// knownGitHubOAuthErrors is the set of OAuth error codes that GitHub may return
+	// in the callback. Unrecognized codes are replaced with "server_error" to prevent
+	// content injection via crafted error parameters.
+	knownGitHubOAuthErrors = map[string]bool{
+		"access_denied":           true,
+		"temporarily_unavailable": true,
+		"server_error":            true,
+		"invalid_request":         true,
+		"unauthorized_client":     true,
+		"unsupported_response_type": true,
+		"invalid_scope":           true,
+		"interaction_required":    true,
+	}
+
+	genericErrorDescription = "an error occurred during authorization"
 )
 
 // HandlerParams holds the DI-injected dependencies for the OAuth Handler.
@@ -388,8 +404,10 @@ func (h *Handler) validateCallbackParams(
 	query url.Values,
 ) (string, authorizeState, *oauthValidationError) {
 	if errParam := query.Get("error"); errParam != "" {
+		code, desc := sanitizeGitHubError(errParam, query.Get("error_description"))
+
 		return "", authorizeState{}, &oauthValidationError{
-			errParam, query.Get("error_description"), http.StatusBadRequest,
+			code, desc, http.StatusBadRequest,
 		}
 	}
 
@@ -885,6 +903,36 @@ func writeOAuthError(w http.ResponseWriter, errCode, description string, status 
 	}); err != nil {
 		slog.Error("failed to encode OAuth error response", "error", err)
 	}
+}
+
+// sanitizeGitHubError replaces unrecognized OAuth error codes and descriptions
+// returned by GitHub with safe defaults to prevent content injection.
+func sanitizeGitHubError(errCode, description string) (string, string) {
+	if !knownGitHubOAuthErrors[errCode] {
+		return "server_error", genericErrorDescription
+	}
+
+	if !isCleanDescription(description) {
+		return errCode, genericErrorDescription
+	}
+
+	return errCode, description
+}
+
+// isCleanDescription checks that the description contains only safe characters
+// (printable ASCII without angle brackets or other HTML/script-injection vectors).
+func isCleanDescription(s string) bool {
+	if s == "" || len(s) > 256 {
+		return false
+	}
+
+	for _, c := range s {
+		if c < ' ' || c > '~' || c == '<' || c == '>' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func generateRandomString(length int) (string, error) {

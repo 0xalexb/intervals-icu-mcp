@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -24,12 +25,18 @@ const (
 )
 
 func newTestHandler(ghTokenURL, ghUserURL string) *Handler {
+	stateKey, err := deriveStateKey([]byte(testJWTSecret))
+	if err != nil {
+		panic("deriving test state key: " + err.Error())
+	}
+
 	return &Handler{
 		store:          auth.NewStore(),
 		allowedUsers:   auth.AllowedUsers{"alice", "bob"},
 		ghClientID:     testGHClientID,
 		ghClientSecret: testGHSecret,
 		jwtSecret:      testJWTSecret,
+		stateKey:       stateKey,
 		issuer:         testIssuer,
 		metadata:       auth.NewAuthorizationServerMetadata(testIssuer),
 		ghClient:       github.NewTestClient(ghTokenURL, ghUserURL),
@@ -1629,6 +1636,79 @@ func TestVerifyState_NoSeparator(t *testing.T) {
 	_, err := h.verifyState("no-dot-separator")
 	if err == nil {
 		t.Fatal("expected error for state without separator")
+	}
+}
+
+func TestDeriveStateKey_ProducesDifferentKey(t *testing.T) {
+	t.Parallel()
+
+	secret := []byte("test-jwt-secret-key")
+
+	stateKey, err := deriveStateKey(secret)
+	if err != nil {
+		t.Fatalf("deriving state key: %v", err)
+	}
+
+	if hmac.Equal(stateKey, secret) {
+		t.Fatal("state key must differ from raw JWT secret")
+	}
+
+	if len(stateKey) != sha256.Size {
+		t.Fatalf("expected state key length %d, got %d", sha256.Size, len(stateKey))
+	}
+}
+
+func TestDeriveStateKey_DeterministicOutput(t *testing.T) {
+	t.Parallel()
+
+	secret := []byte("test-jwt-secret-key")
+
+	key1, err := deriveStateKey(secret)
+	if err != nil {
+		t.Fatalf("first derivation: %v", err)
+	}
+
+	key2, err := deriveStateKey(secret)
+	if err != nil {
+		t.Fatalf("second derivation: %v", err)
+	}
+
+	if !hmac.Equal(key1, key2) {
+		t.Fatal("same secret must produce same derived key")
+	}
+}
+
+func TestStateKey_DifferentSignatureThanJWTSecret(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	as := authorizeState{
+		ClientID:    "test-client",
+		RedirectURI: "https://client.example.com/callback",
+		Nonce:       "nonce",
+		CreatedAt:   time.Now().Unix(),
+	}
+
+	data, err := json.Marshal(as)
+	if err != nil {
+		t.Fatalf("marshaling state: %v", err)
+	}
+
+	payload := base64.RawURLEncoding.EncodeToString(data)
+
+	// Sign with derived state key (what the handler uses).
+	stateMAC := hmac.New(sha256.New, h.stateKey)
+	stateMAC.Write([]byte(payload))
+	stateSig := stateMAC.Sum(nil)
+
+	// Sign with raw JWT secret (what the handler used to use).
+	jwtMAC := hmac.New(sha256.New, []byte(h.jwtSecret))
+	jwtMAC.Write([]byte(payload))
+	jwtSig := jwtMAC.Sum(nil)
+
+	if hmac.Equal(stateSig, jwtSig) {
+		t.Fatal("derived state key and raw JWT secret must produce different HMAC signatures")
 	}
 }
 

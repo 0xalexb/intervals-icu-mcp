@@ -27,7 +27,7 @@ func testRouterParams(mcpHandler http.Handler, origins AllowedOrigins) RouterPar
 	prMetadata := appauth.NewProtectedResourceMetadata(testIssuer)
 	verifier := appauth.NewTokenVerifier(secret, testIssuer)
 
-	handler := rest.NewHandler(rest.HandlerParams{
+	handler, err := rest.NewHandler(rest.HandlerParams{
 		Store:                       store,
 		AllowedUsers:                appauth.AllowedUsers{},
 		GitHubClientID:              "test-client-id",
@@ -37,6 +37,9 @@ func testRouterParams(mcpHandler http.Handler, origins AllowedOrigins) RouterPar
 		AuthorizationServerMetadata: metadata,
 		GitHubClient:                ghclient.NewClient(),
 	})
+	if err != nil {
+		panic("creating test handler: " + err.Error())
+	}
 
 	return RouterParams{
 		MCPHandler:                  mcpHandler,

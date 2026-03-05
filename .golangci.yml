@@ -84,6 +84,8 @@ linters:
             - github.com/golang-jwt/jwt
             # UUID
             - github.com/gofrs/uuid
+            # crypto (HKDF key derivation)
+            - golang.org/x/crypto
         tests:
           list-mode: strict
           files:
@@ -108,3 +110,5 @@ linters:
             - github.com/golang-jwt/jwt
             # UUID
             - github.com/gofrs/uuid
+            # crypto (HKDF key derivation)
+            - golang.org/x/crypto

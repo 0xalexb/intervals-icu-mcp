@@ -305,7 +305,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.store.SaveAuthCode(&auth.Code{
+	if err = h.store.SaveAuthCode(&auth.Code{
 		Code:                authCode,
 		ClientID:            authState.ClientID,
 		RedirectURI:         authState.RedirectURI,
@@ -314,7 +314,11 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		GitHubUsername:      strings.ToLower(ghUser.Login),
 		Scopes:              parseScopes(authState.Scope),
 		ExpiresAt:           time.Now().Add(authCodeTTL),
-	})
+	}); err != nil {
+		h.redirectError(w, r, authState, "server_error", "too many pending authorization codes")
+
+		return
+	}
 
 	redirectURL, err := url.Parse(authState.RedirectURI)
 	if err != nil {
@@ -617,13 +621,17 @@ func (h *Handler) issueTokenPair(
 			return
 		}
 
-		h.store.SaveRefreshToken(&auth.RefreshToken{
+		if err = h.store.SaveRefreshToken(&auth.RefreshToken{
 			Token:         refreshToken,
 			ClientID:      clientID,
 			GitHubUsername: username,
 			Scopes:        scopes,
 			ExpiresAt:     time.Now().Add(refreshTokenTTL),
-		})
+		}); err != nil {
+			writeOAuthError(w, "server_error", "too many active refresh tokens", http.StatusServiceUnavailable)
+
+			return
+		}
 	}
 
 	writeTokenResponse(w, accessToken, refreshToken, int(accessTokenTTL.Seconds()))

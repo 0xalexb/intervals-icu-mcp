@@ -7,9 +7,11 @@ import (
 )
 
 const (
-	cleanupInterval = 5 * time.Minute
-	maxClients      = 1000
-	clientTTL       = 30 * 24 * time.Hour
+	cleanupInterval  = 5 * time.Minute
+	maxClients       = 1000
+	maxAuthCodes     = 10000
+	maxRefreshTokens = 10000
+	clientTTL        = 30 * 24 * time.Hour
 )
 
 var (
@@ -19,6 +21,8 @@ var (
 	errRefreshTokenExpired   = errors.New("refresh token has expired")
 	errClientNotFound        = errors.New("client not found")
 	errMaxClientsReached     = errors.New("maximum number of registered clients reached")
+	errMaxAuthCodesReached   = errors.New("maximum number of authorization codes reached")
+	errMaxRefreshTokensReached = errors.New("maximum number of refresh tokens reached")
 )
 
 // Code represents an OAuth 2.1 authorization code stored in memory.
@@ -126,12 +130,24 @@ func (s *Store) evictExpiredLocked(now time.Time) {
 	}
 }
 
-// SaveAuthCode stores an authorization code.
-func (s *Store) SaveAuthCode(code *Code) {
+// SaveAuthCode stores an authorization code. Returns an error if the maximum number
+// of authorization codes has been reached. When the cap is hit, expired codes
+// are evicted first before rejecting the request.
+func (s *Store) SaveAuthCode(code *Code) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.authCodes) >= maxAuthCodes {
+		s.evictExpiredLocked(time.Now())
+	}
+
+	if len(s.authCodes) >= maxAuthCodes {
+		return errMaxAuthCodesReached
+	}
+
 	s.authCodes[code.Code] = code
+
+	return nil
 }
 
 // GetAuthCode retrieves an authorization code without deleting it.
@@ -180,12 +196,24 @@ func (s *Store) ConsumeAuthCode(code string, now time.Time) (*Code, error) {
 	return ac, nil
 }
 
-// SaveRefreshToken stores a refresh token.
-func (s *Store) SaveRefreshToken(token *RefreshToken) {
+// SaveRefreshToken stores a refresh token. Returns an error if the maximum number
+// of refresh tokens has been reached. When the cap is hit, expired tokens
+// are evicted first before rejecting the request.
+func (s *Store) SaveRefreshToken(token *RefreshToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if len(s.refreshTokens) >= maxRefreshTokens {
+		s.evictExpiredLocked(time.Now())
+	}
+
+	if len(s.refreshTokens) >= maxRefreshTokens {
+		return errMaxRefreshTokensReached
+	}
+
 	s.refreshTokens[token.Token] = token
+
+	return nil
 }
 
 // ConsumeRefreshToken retrieves and deletes a refresh token (rotation).

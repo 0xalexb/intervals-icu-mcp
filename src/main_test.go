@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -85,8 +84,8 @@ func TestResolveSecretsFromEnv(t *testing.T) {
 	})
 
 	t.Run("unset env vars leave flags empty", func(t *testing.T) {
-		os.Unsetenv("GITHUB_CLIENT_SECRET")
-		os.Unsetenv("JWT_SECRET")
+		t.Setenv("GITHUB_CLIENT_SECRET", "")
+		t.Setenv("JWT_SECRET", "")
 
 		flags := cliFlags{}
 		resolveSecretsFromEnv(&flags)

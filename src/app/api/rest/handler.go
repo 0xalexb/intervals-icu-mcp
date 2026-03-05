@@ -40,6 +40,8 @@ const (
 	grantTypeRefreshToken      = "refresh_token"
 
 	scopeMCP = "mcp"
+
+	genericErrorDescription = "an error occurred during authorization"
 )
 
 var (
@@ -51,22 +53,6 @@ var (
 	errRedirectURIHasFragment    = errors.New("redirect_uri must not contain a fragment")
 	errRedirectURINotLoopback    = errors.New("redirect_uri with http scheme is only allowed for loopback addresses")
 	errUnsupportedGrantType = errors.New("unsupported grant_type")
-
-	// knownGitHubOAuthErrors is the set of OAuth error codes that GitHub may return
-	// in the callback. Unrecognized codes are replaced with "server_error" to prevent
-	// content injection via crafted error parameters.
-	knownGitHubOAuthErrors = map[string]bool{
-		"access_denied":           true,
-		"temporarily_unavailable": true,
-		"server_error":            true,
-		"invalid_request":         true,
-		"unauthorized_client":     true,
-		"unsupported_response_type": true,
-		"invalid_scope":           true,
-		"interaction_required":    true,
-	}
-
-	genericErrorDescription = "an error occurred during authorization"
 )
 
 // HandlerParams holds the DI-injected dependencies for the OAuth Handler.
@@ -908,7 +894,18 @@ func writeOAuthError(w http.ResponseWriter, errCode, description string, status 
 // sanitizeGitHubError replaces unrecognized OAuth error codes and descriptions
 // returned by GitHub with safe defaults to prevent content injection.
 func sanitizeGitHubError(errCode, description string) (string, string) {
-	if !knownGitHubOAuthErrors[errCode] {
+	knownErrors := map[string]bool{
+		"access_denied":             true,
+		"temporarily_unavailable":   true,
+		"server_error":              true,
+		"invalid_request":           true,
+		"unauthorized_client":       true,
+		"unsupported_response_type": true,
+		"invalid_scope":             true,
+		"interaction_required":      true,
+	}
+
+	if !knownErrors[errCode] {
 		return "server_error", genericErrorDescription
 	}
 

@@ -17,8 +17,7 @@ const (
 var (
 	errAuthCodeNotFound      = errors.New("authorization code not found")
 	errAuthCodeExpired       = errors.New("authorization code has expired")
-	errRefreshTokenNotFound  = errors.New("refresh token not found")
-	errRefreshTokenExpired   = errors.New("refresh token has expired")
+	errRefreshTokenNotFound = errors.New("refresh token not found")
 	errClientNotFound        = errors.New("client not found")
 	errMaxClientsReached     = errors.New("maximum number of registered clients reached")
 	errMaxAuthCodesReached   = errors.New("maximum number of authorization codes reached")
@@ -237,7 +236,7 @@ func (s *Store) ConsumeRefreshToken(token, clientID string, now time.Time) (*Ref
 	delete(s.refreshTokens, token)
 
 	if now.After(rt.ExpiresAt) {
-		return nil, errRefreshTokenExpired
+		return nil, errRefreshTokenNotFound
 	}
 
 	return rt, nil

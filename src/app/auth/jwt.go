@@ -40,6 +40,7 @@ func IssueAccessToken(
 		"iss":   string(issuer),
 		"sub":   username,
 		"exp":   jwt.NewNumericDate(now.Add(ttl)),
+		"nbf":   jwt.NewNumericDate(now),
 		"iat":   jwt.NewNumericDate(now),
 		"jti":   jti.String(),
 		"scope": strings.Join(scopes, " "),

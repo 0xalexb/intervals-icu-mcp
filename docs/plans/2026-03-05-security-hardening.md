@@ -115,11 +115,11 @@ GitHub's `error` and `error_description` query parameters are forwarded verbatim
 - Modify: `src/app/auth/jwt.go` (L4)
 - Modify: `src/app/auth/store.go` (L5)
 
-- [ ] L1: Remove `DELETE` from CORS `WithAllowedMethods` in router.go (MCP protocol only uses GET/POST)
-- [ ] L4: Add `"nbf": jwt.NewNumericDate(now)` claim in `IssueAccessToken`
-- [ ] L5: In `ConsumeRefreshToken`, return the same `errRefreshTokenNotFound` error for expired tokens instead of `errRefreshTokenExpired` (prevent existence leaking)
-- [ ] Update existing tests to verify nbf claim is present; verify uniform error for expired vs not-found refresh tokens
-- [ ] Run project test suite - must pass before task 8
+- [x] L1: Remove `DELETE` from CORS `WithAllowedMethods` in router.go (MCP protocol only uses GET/POST)
+- [x] L4: Add `"nbf": jwt.NewNumericDate(now)` claim in `IssueAccessToken`
+- [x] L5: In `ConsumeRefreshToken`, return the same `errRefreshTokenNotFound` error for expired tokens instead of `errRefreshTokenExpired` (prevent existence leaking)
+- [x] Update existing tests to verify nbf claim is present; verify uniform error for expired vs not-found refresh tokens
+- [x] Run project test suite - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 

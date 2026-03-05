@@ -61,6 +61,10 @@ func TestIssueAccessToken_ValidToken(t *testing.T) {
 		t.Fatal("expected iat claim to be set")
 	}
 
+	if claims["nbf"] == nil {
+		t.Fatal("expected nbf claim to be set")
+	}
+
 	if claims["exp"] == nil {
 		t.Fatal("expected exp claim to be set")
 	}

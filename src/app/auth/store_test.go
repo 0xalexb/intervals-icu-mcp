@@ -1,12 +1,15 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 )
 
-func TestSaveAuthCode_And_ConsumeAuthCode(t *testing.T) {
+var noValidation = func(*Code) error { return nil }
+
+func TestSaveAuthCode_And_ValidateAndConsumeAuthCode(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
@@ -23,9 +26,11 @@ func TestSaveAuthCode_And_ConsumeAuthCode(t *testing.T) {
 		ExpiresAt:           now.Add(10 * time.Minute),
 	}
 
-	store.SaveAuthCode(code)
+	if err := store.SaveAuthCode(code); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
-	got, err := store.ConsumeAuthCode("test-code", now)
+	got, err := store.ValidateAndConsumeAuthCode("test-code", now, noValidation)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -43,7 +48,7 @@ func TestSaveAuthCode_And_ConsumeAuthCode(t *testing.T) {
 	}
 }
 
-func TestConsumeAuthCode_OneTimeUse(t *testing.T) {
+func TestValidateAndConsumeAuthCode_OneTimeUse(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
@@ -55,14 +60,16 @@ func TestConsumeAuthCode_OneTimeUse(t *testing.T) {
 		ExpiresAt: now.Add(10 * time.Minute),
 	}
 
-	store.SaveAuthCode(code)
+	if err := store.SaveAuthCode(code); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
-	_, err := store.ConsumeAuthCode("one-time-code", now)
+	_, err := store.ValidateAndConsumeAuthCode("one-time-code", now, noValidation)
 	if err != nil {
 		t.Fatalf("first consume should succeed: %v", err)
 	}
 
-	_, err = store.ConsumeAuthCode("one-time-code", now)
+	_, err = store.ValidateAndConsumeAuthCode("one-time-code", now, noValidation)
 	if err == nil {
 		t.Fatal("second consume should fail")
 	}
@@ -72,7 +79,7 @@ func TestConsumeAuthCode_OneTimeUse(t *testing.T) {
 	}
 }
 
-func TestConsumeAuthCode_Expired(t *testing.T) {
+func TestValidateAndConsumeAuthCode_Expired(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
@@ -84,9 +91,11 @@ func TestConsumeAuthCode_Expired(t *testing.T) {
 		ExpiresAt: past,
 	}
 
-	store.SaveAuthCode(code)
+	if err := store.SaveAuthCode(code); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
-	_, err := store.ConsumeAuthCode("expired-code", time.Now())
+	_, err := store.ValidateAndConsumeAuthCode("expired-code", time.Now(), noValidation)
 	if err == nil {
 		t.Fatal("expected error for expired code")
 	}
@@ -96,7 +105,7 @@ func TestConsumeAuthCode_Expired(t *testing.T) {
 	}
 }
 
-func TestConsumeAuthCode_ExpiredCodeIsDeletedFromStore(t *testing.T) {
+func TestValidateAndConsumeAuthCode_ExpiredCodeIsDeletedFromStore(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
@@ -108,28 +117,64 @@ func TestConsumeAuthCode_ExpiredCodeIsDeletedFromStore(t *testing.T) {
 		ExpiresAt: past,
 	}
 
-	store.SaveAuthCode(code)
+	if err := store.SaveAuthCode(code); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
-	_, _ = store.ConsumeAuthCode("expired-deleted-code", time.Now())
+	_, _ = store.ValidateAndConsumeAuthCode("expired-deleted-code", time.Now(), noValidation)
 
-	_, err := store.ConsumeAuthCode("expired-deleted-code", time.Now())
+	_, err := store.ValidateAndConsumeAuthCode("expired-deleted-code", time.Now(), noValidation)
 	if err != errAuthCodeNotFound {
 		t.Fatalf("expected errAuthCodeNotFound after consuming expired code, got %v", err)
 	}
 }
 
-func TestConsumeAuthCode_NotFound(t *testing.T) {
+func TestValidateAndConsumeAuthCode_NotFound(t *testing.T) {
 	t.Parallel()
 
 	store := NewStore()
 
-	_, err := store.ConsumeAuthCode("nonexistent", time.Now())
+	_, err := store.ValidateAndConsumeAuthCode("nonexistent", time.Now(), noValidation)
 	if err == nil {
 		t.Fatal("expected error for nonexistent code")
 	}
 
 	if err != errAuthCodeNotFound {
 		t.Fatalf("expected errAuthCodeNotFound, got %v", err)
+	}
+}
+
+func TestValidateAndConsumeAuthCode_ValidationFailureDoesNotConsume(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	if err := store.SaveAuthCode(&Code{
+		Code:      "validate-fail-code",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(10 * time.Minute),
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
+
+	validationErr := errors.New("validation failed")
+
+	_, err := store.ValidateAndConsumeAuthCode("validate-fail-code", now, func(*Code) error {
+		return validationErr
+	})
+	if err != validationErr {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+
+	// Code should still exist after failed validation.
+	got, err := store.GetAuthCode("validate-fail-code", now)
+	if err != nil {
+		t.Fatalf("code should still exist after validation failure: %v", err)
+	}
+
+	if got.Code != "validate-fail-code" {
+		t.Fatalf("expected 'validate-fail-code', got %q", got.Code)
 	}
 }
 
@@ -150,7 +195,9 @@ func TestGetAuthCode_Success(t *testing.T) {
 		ExpiresAt:           now.Add(10 * time.Minute),
 	}
 
-	store.SaveAuthCode(code)
+	if err := store.SaveAuthCode(code); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	got, err := store.GetAuthCode("get-code", now)
 	if err != nil {
@@ -172,11 +219,13 @@ func TestGetAuthCode_DoesNotDelete(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	store.SaveAuthCode(&Code{
+	if err := store.SaveAuthCode(&Code{
 		Code:      "persistent-code",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	_, err := store.GetAuthCode("persistent-code", now)
 	if err != nil {
@@ -206,11 +255,13 @@ func TestGetAuthCode_Expired(t *testing.T) {
 	store := NewStore()
 	past := time.Now().Add(-10 * time.Minute)
 
-	store.SaveAuthCode(&Code{
+	if err := store.SaveAuthCode(&Code{
 		Code:      "expired-get-code",
 		ClientID:  "client-1",
 		ExpiresAt: past,
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	_, err := store.GetAuthCode("expired-get-code", time.Now())
 	if err != errAuthCodeExpired {
@@ -224,11 +275,13 @@ func TestDeleteAuthCode(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	store.SaveAuthCode(&Code{
+	if err := store.SaveAuthCode(&Code{
 		Code:      "delete-me",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(10 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving auth code: %v", err)
+	}
 
 	store.DeleteAuthCode("delete-me")
 
@@ -261,7 +314,9 @@ func TestSaveRefreshToken_And_ConsumeRefreshToken(t *testing.T) {
 		ExpiresAt:     now.Add(24 * time.Hour),
 	}
 
-	store.SaveRefreshToken(token)
+	if err := store.SaveRefreshToken(token); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	got, err := store.ConsumeRefreshToken("refresh-token-1", "client-1", now)
 	if err != nil {
@@ -289,7 +344,9 @@ func TestConsumeRefreshToken_Rotation(t *testing.T) {
 		ExpiresAt: now.Add(24 * time.Hour),
 	}
 
-	store.SaveRefreshToken(token)
+	if err := store.SaveRefreshToken(token); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	_, err := store.ConsumeRefreshToken("old-refresh-token", "client-1", now)
 	if err != nil {
@@ -311,7 +368,9 @@ func TestConsumeRefreshToken_Rotation(t *testing.T) {
 		ExpiresAt: now.Add(24 * time.Hour),
 	}
 
-	store.SaveRefreshToken(newToken)
+	if err = store.SaveRefreshToken(newToken); err != nil {
+		t.Fatalf("saving new refresh token: %v", err)
+	}
 
 	got, err := store.ConsumeRefreshToken("new-refresh-token", "client-1", now)
 	if err != nil {
@@ -335,7 +394,9 @@ func TestConsumeRefreshToken_Expired(t *testing.T) {
 		ExpiresAt: past,
 	}
 
-	store.SaveRefreshToken(token)
+	if err := store.SaveRefreshToken(token); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	_, err := store.ConsumeRefreshToken("expired-refresh", "client-1", time.Now())
 	if err == nil {
@@ -359,7 +420,9 @@ func TestConsumeRefreshToken_ExpiredTokenIsDeletedFromStore(t *testing.T) {
 		ExpiresAt: past,
 	}
 
-	store.SaveRefreshToken(token)
+	if err := store.SaveRefreshToken(token); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	_, _ = store.ConsumeRefreshToken("expired-deleted-refresh", "client-1", time.Now())
 
@@ -478,7 +541,7 @@ func TestNewStore_EmptyMaps(t *testing.T) {
 
 	store := NewStore()
 
-	_, err := store.ConsumeAuthCode("any", time.Now())
+	_, err := store.ValidateAndConsumeAuthCode("any", time.Now(), noValidation)
 	if err != errAuthCodeNotFound {
 		t.Fatalf("expected errAuthCodeNotFound on empty store, got %v", err)
 	}
@@ -524,38 +587,46 @@ func TestEvictExpired(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	store.SaveAuthCode(&Code{
+	if err := store.SaveAuthCode(&Code{
 		Code:      "expired-code",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(-5 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving expired auth code: %v", err)
+	}
 
-	store.SaveAuthCode(&Code{
+	if err := store.SaveAuthCode(&Code{
 		Code:      "valid-code",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(5 * time.Minute),
-	})
+	}); err != nil {
+		t.Fatalf("saving valid auth code: %v", err)
+	}
 
-	store.SaveRefreshToken(&RefreshToken{
+	if err := store.SaveRefreshToken(&RefreshToken{
 		Token:     "expired-rt",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(-1 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving expired refresh token: %v", err)
+	}
 
-	store.SaveRefreshToken(&RefreshToken{
+	if err := store.SaveRefreshToken(&RefreshToken{
 		Token:     "valid-rt",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(1 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving valid refresh token: %v", err)
+	}
 
 	store.evictExpired(now)
 
-	_, err := store.ConsumeAuthCode("expired-code", now)
+	_, err := store.GetAuthCode("expired-code", now)
 	if err != errAuthCodeNotFound {
 		t.Fatalf("expected expired code to be evicted, got %v", err)
 	}
 
-	got, err := store.ConsumeAuthCode("valid-code", now)
+	got, err := store.GetAuthCode("valid-code", now)
 	if err != nil {
 		t.Fatalf("expected valid code to survive eviction: %v", err)
 	}
@@ -734,8 +805,8 @@ func TestSaveRefreshToken_MaxRefreshTokensLimit(t *testing.T) {
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(24 * time.Hour),
 	})
-	if err != errMaxRefreshTokensReached {
-		t.Fatalf("expected errMaxRefreshTokensReached, got %v", err)
+	if err != ErrMaxRefreshTokensReached {
+		t.Fatalf("expected ErrMaxRefreshTokensReached, got %v", err)
 	}
 }
 
@@ -781,11 +852,13 @@ func TestConsumeRefreshToken_ExpiredAndNotFoundReturnSameError(t *testing.T) {
 	store := NewStore()
 	now := time.Now()
 
-	store.SaveRefreshToken(&RefreshToken{
+	if err := store.SaveRefreshToken(&RefreshToken{
 		Token:     "expired-uniform",
 		ClientID:  "client-1",
 		ExpiresAt: now.Add(-1 * time.Hour),
-	})
+	}); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
 
 	_, errExpired := store.ConsumeRefreshToken("expired-uniform", "client-1", now)
 	_, errNotFound := store.ConsumeRefreshToken("nonexistent-uniform", "client-1", now)

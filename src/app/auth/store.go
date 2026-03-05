@@ -21,7 +21,8 @@ var (
 	errClientNotFound        = errors.New("client not found")
 	errMaxClientsReached     = errors.New("maximum number of registered clients reached")
 	errMaxAuthCodesReached   = errors.New("maximum number of authorization codes reached")
-	errMaxRefreshTokensReached = errors.New("maximum number of refresh tokens reached")
+	// ErrMaxRefreshTokensReached is returned when the refresh token cap is reached.
+	ErrMaxRefreshTokensReached = errors.New("maximum number of refresh tokens reached")
 )
 
 // Code represents an OAuth 2.1 authorization code stored in memory.
@@ -150,6 +151,7 @@ func (s *Store) SaveAuthCode(code *Code) error {
 }
 
 // GetAuthCode retrieves an authorization code without deleting it.
+// Returns a copy to prevent callers from mutating store data.
 // Returns an error if the code is not found or has expired.
 func (s *Store) GetAuthCode(code string, now time.Time) (*Code, error) {
 	s.mu.RLock()
@@ -164,7 +166,10 @@ func (s *Store) GetAuthCode(code string, now time.Time) (*Code, error) {
 		return nil, errAuthCodeExpired
 	}
 
-	return ac, nil
+	cp := *ac
+	cp.Scopes = cloneStrings(ac.Scopes)
+
+	return &cp, nil
 }
 
 // DeleteAuthCode deletes an authorization code by key.
@@ -175,9 +180,13 @@ func (s *Store) DeleteAuthCode(code string) {
 	delete(s.authCodes, code)
 }
 
-// ConsumeAuthCode retrieves and deletes an authorization code (one-time use).
-// Returns an error if the code is not found or has expired.
-func (s *Store) ConsumeAuthCode(code string, now time.Time) (*Code, error) {
+// ValidateAndConsumeAuthCode atomically retrieves, validates, and deletes an authorization code.
+// The validate function is called under the store's write lock. If validate returns an error,
+// the code is NOT consumed (allowing retry with correct parameters).
+// Returns an error if the code is not found, has expired, or fails validation.
+func (s *Store) ValidateAndConsumeAuthCode(
+	code string, now time.Time, validate func(*Code) error,
+) (*Code, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -186,11 +195,17 @@ func (s *Store) ConsumeAuthCode(code string, now time.Time) (*Code, error) {
 		return nil, errAuthCodeNotFound
 	}
 
-	delete(s.authCodes, code)
-
 	if now.After(ac.ExpiresAt) {
+		delete(s.authCodes, code)
+
 		return nil, errAuthCodeExpired
 	}
+
+	if err := validate(ac); err != nil {
+		return nil, err
+	}
+
+	delete(s.authCodes, code)
 
 	return ac, nil
 }
@@ -207,7 +222,7 @@ func (s *Store) SaveRefreshToken(token *RefreshToken) error {
 	}
 
 	if len(s.refreshTokens) >= maxRefreshTokens {
-		return errMaxRefreshTokensReached
+		return ErrMaxRefreshTokensReached
 	}
 
 	s.refreshTokens[token.Token] = token
@@ -242,6 +257,56 @@ func (s *Store) ConsumeRefreshToken(token, clientID string, now time.Time) (*Ref
 	return rt, nil
 }
 
+// RotateRefreshToken atomically consumes the old refresh token and saves a new one.
+// This prevents the window where the old token is consumed but the new one fails to save
+// due to token cap limits. If the new token cannot be saved, the old token remains valid.
+func (s *Store) RotateRefreshToken(
+	oldToken, clientID string, now time.Time, newToken *RefreshToken,
+) (*RefreshToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rt, ok := s.refreshTokens[oldToken]
+	if !ok {
+		return nil, errRefreshTokenNotFound
+	}
+
+	if rt.ClientID != clientID {
+		return nil, errRefreshTokenNotFound
+	}
+
+	if now.After(rt.ExpiresAt) {
+		delete(s.refreshTokens, oldToken)
+
+		return nil, errRefreshTokenNotFound
+	}
+
+	// Delete the old token first to free a slot, then check the cap for the new one.
+	delete(s.refreshTokens, oldToken)
+
+	// The old token's slot is now free, so we only need to check if we're still at cap
+	// (which can happen if other tokens filled the store concurrently).
+	if len(s.refreshTokens) >= maxRefreshTokens {
+		s.evictExpiredLocked(now)
+	}
+
+	if len(s.refreshTokens) >= maxRefreshTokens {
+		// Restore the old token so the user doesn't lose their session.
+		s.refreshTokens[oldToken] = rt
+
+		return nil, ErrMaxRefreshTokensReached
+	}
+
+	// Carry over identity fields from the old token.
+	newToken.ClientID = rt.ClientID
+	newToken.GitHubUsername = rt.GitHubUsername
+	newToken.Scopes = cloneStrings(rt.Scopes)
+
+	s.refreshTokens[newToken.Token] = newToken
+
+	return rt, nil
+}
+
 // SaveClient stores a registered client. Returns an error if the maximum number
 // of registered clients has been reached. When the cap is hit, expired clients
 // are evicted first before rejecting the request.
@@ -268,13 +333,17 @@ func (s *Store) SaveClient(client *RegisteredClient) error {
 
 // GetClient retrieves a registered client by its client ID.
 // Returns a deep copy to prevent callers from mutating store data.
-// Returns an error if the client is not found.
+// Returns an error if the client is not found or has expired.
 func (s *Store) GetClient(clientID string) (*RegisteredClient, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	client, ok := s.clients[clientID]
 	if !ok {
+		return nil, errClientNotFound
+	}
+
+	if time.Now().After(client.CreatedAt.Add(clientTTL)) {
 		return nil, errClientNotFound
 	}
 

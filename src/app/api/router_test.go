@@ -499,6 +499,30 @@ func TestNewRouter_CORSAllowsCustomOrigin(t *testing.T) {
 	}
 }
 
+func TestNewRouter_CORSRejectsDifferentPortSameHostname(t *testing.T) {
+	t.Parallel()
+
+	// Only allow http://localhost:3000 — port 9999 must be rejected.
+	origins := AllowedOrigins{"http://localhost:3000"}
+
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	router := NewRouter(testRouterParams(mcpHandler, origins))
+
+	req := httptest.NewRequest(http.MethodOptions, "/mcp", nil)
+	req.Header.Set("Origin", "http://localhost:9999")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("expected no Access-Control-Allow-Origin for different port on same hostname, got %q",
+			rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestNewRouter_CORSRejectsUnlistedOrigin(t *testing.T) {
 	t.Parallel()
 

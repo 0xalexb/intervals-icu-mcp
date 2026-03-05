@@ -49,7 +49,7 @@ func NewRouter(params RouterParams) http.Handler {
 		middleware.RateLimit(rateLimitRate, rateLimitBurst),
 		middleware.MaxRequestSize(maxRequestBodySize),
 		middleware.CORS(
-			middleware.WithAllowedOrigins(params.Origins.Hostnames()...),
+			middleware.WithAllowedOrigins(params.Origins...),
 			middleware.WithAllowedMethods("GET", "POST", "OPTIONS"),
 			middleware.WithAllowedHeaders(
 				"Content-Type", "Authorization", "Mcp-Session-Id",

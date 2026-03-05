@@ -52,23 +52,6 @@ func NewAllowedOrigins(raw RawAllowedOrigins) (AllowedOrigins, error) {
 	return origins, nil
 }
 
-// Hostnames extracts bare hostnames from each full origin URL.
-// For example, "http://localhost:3000" yields "localhost" and "http://[::1]:9090" yields "::1".
-func (o AllowedOrigins) Hostnames() []string {
-	hostnames := make([]string, 0, len(o))
-
-	for _, entry := range o {
-		parsed, err := url.Parse(entry)
-		if err != nil {
-			continue
-		}
-
-		hostnames = append(hostnames, parsed.Hostname())
-	}
-
-	return hostnames
-}
-
 // validateOrigin checks that the entry is a full origin URL with scheme and host.
 // It requires http:// or https:// scheme, a non-empty host, and no path/query/fragment.
 func validateOrigin(entry string) error {

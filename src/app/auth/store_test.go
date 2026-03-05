@@ -649,6 +649,132 @@ func TestSaveClient_AutoEvictsExpiredOnCapHit(t *testing.T) {
 	}
 }
 
+func TestSaveAuthCode_MaxAuthCodesLimit(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	for i := range maxAuthCodes {
+		err := store.SaveAuthCode(&Code{
+			Code:      fmt.Sprintf("code-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: now.Add(10 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error saving auth code %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveAuthCode(&Code{
+		Code:      "one-too-many",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(10 * time.Minute),
+	})
+	if err != errMaxAuthCodesReached {
+		t.Fatalf("expected errMaxAuthCodesReached, got %v", err)
+	}
+}
+
+func TestSaveAuthCode_AutoEvictsExpiredOnCapHit(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	for i := range maxAuthCodes {
+		err := store.SaveAuthCode(&Code{
+			Code:      fmt.Sprintf("expired-code-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: now.Add(-5 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("saving auth code %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveAuthCode(&Code{
+		Code:      "fresh-code",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(10 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("expected auto-eviction to free slots, got %v", err)
+	}
+
+	got, err := store.GetAuthCode("fresh-code", now)
+	if err != nil {
+		t.Fatalf("expected new code to exist: %v", err)
+	}
+
+	if got.Code != "fresh-code" {
+		t.Fatalf("expected 'fresh-code', got %q", got.Code)
+	}
+}
+
+func TestSaveRefreshToken_MaxRefreshTokensLimit(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	for i := range maxRefreshTokens {
+		err := store.SaveRefreshToken(&RefreshToken{
+			Token:     fmt.Sprintf("rt-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: now.Add(24 * time.Hour),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error saving refresh token %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveRefreshToken(&RefreshToken{
+		Token:     "one-too-many",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(24 * time.Hour),
+	})
+	if err != errMaxRefreshTokensReached {
+		t.Fatalf("expected errMaxRefreshTokensReached, got %v", err)
+	}
+}
+
+func TestSaveRefreshToken_AutoEvictsExpiredOnCapHit(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	for i := range maxRefreshTokens {
+		err := store.SaveRefreshToken(&RefreshToken{
+			Token:     fmt.Sprintf("expired-rt-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: now.Add(-1 * time.Hour),
+		})
+		if err != nil {
+			t.Fatalf("saving refresh token %d: %v", i, err)
+		}
+	}
+
+	err := store.SaveRefreshToken(&RefreshToken{
+		Token:     "fresh-rt",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("expected auto-eviction to free slots, got %v", err)
+	}
+
+	got, err := store.ConsumeRefreshToken("fresh-rt", "client-1", now)
+	if err != nil {
+		t.Fatalf("expected new token to exist: %v", err)
+	}
+
+	if got.Token != "fresh-rt" {
+		t.Fatalf("expected 'fresh-rt', got %q", got.Token)
+	}
+}
+
 func TestStopCleanup_Idempotent(t *testing.T) {
 	t.Parallel()
 

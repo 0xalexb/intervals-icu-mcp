@@ -88,13 +88,13 @@ JWT secret is reused for OAuth state HMAC signing. Key compromise affects both. 
 
 Auth codes and refresh tokens have no size limit unlike clients (capped at 1000). Add caps.
 
-- [ ] Add `maxAuthCodes` and `maxRefreshTokens` constants (e.g., 10000 each)
-- [ ] In `SaveAuthCode`, check count and evict expired entries when cap is reached (same pattern as `SaveClient`)
-- [ ] In `SaveRefreshToken`, check count and evict expired entries when cap is reached
-- [ ] Add new error variables and return error from `SaveAuthCode` and `SaveRefreshToken`
-- [ ] Update handler.go callers to handle errors from `SaveAuthCode` and `SaveRefreshToken`
-- [ ] Write tests for cap enforcement and eviction behavior
-- [ ] Run project test suite - must pass before task 6
+- [x] Add `maxAuthCodes` and `maxRefreshTokens` constants (e.g., 10000 each)
+- [x] In `SaveAuthCode`, check count and evict expired entries when cap is reached (same pattern as `SaveClient`)
+- [x] In `SaveRefreshToken`, check count and evict expired entries when cap is reached
+- [x] Add new error variables and return error from `SaveAuthCode` and `SaveRefreshToken`
+- [x] Update handler.go callers to handle errors from `SaveAuthCode` and `SaveRefreshToken`
+- [x] Write tests for cap enforcement and eviction behavior
+- [x] Run project test suite - must pass before task 6
 
 ### Task 6: Sanitize GitHub error parameters (M6 - MEDIUM)
 

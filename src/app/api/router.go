@@ -75,7 +75,10 @@ func NewRouter(params RouterParams) http.Handler {
 	router.Handle("POST /oauth/token",
 		http.HandlerFunc(params.AuthHandler.HandleToken))
 
-	registerRateLimit := middleware.PerIPRateLimit(middleware.WithRateLimit(registerRateLimitRate, time.Second), middleware.WithBurst(registerRateLimitBurst))
+	registerRateLimit := middleware.PerIPRateLimit(
+		middleware.WithRateLimit(registerRateLimitRate, time.Second),
+		middleware.WithBurst(registerRateLimitBurst),
+	)
 	router.Handle("POST /oauth/register",
 		registerRateLimit(http.HandlerFunc(params.AuthHandler.HandleRegister)))
 

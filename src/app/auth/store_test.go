@@ -342,8 +342,8 @@ func TestConsumeRefreshToken_Expired(t *testing.T) {
 		t.Fatal("expected error for expired refresh token")
 	}
 
-	if err != errRefreshTokenExpired {
-		t.Fatalf("expected errRefreshTokenExpired, got %v", err)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound for expired token (uniform error), got %v", err)
 	}
 }
 
@@ -772,6 +772,30 @@ func TestSaveRefreshToken_AutoEvictsExpiredOnCapHit(t *testing.T) {
 
 	if got.Token != "fresh-rt" {
 		t.Fatalf("expected 'fresh-rt', got %q", got.Token)
+	}
+}
+
+func TestConsumeRefreshToken_ExpiredAndNotFoundReturnSameError(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	store.SaveRefreshToken(&RefreshToken{
+		Token:     "expired-uniform",
+		ClientID:  "client-1",
+		ExpiresAt: now.Add(-1 * time.Hour),
+	})
+
+	_, errExpired := store.ConsumeRefreshToken("expired-uniform", "client-1", now)
+	_, errNotFound := store.ConsumeRefreshToken("nonexistent-uniform", "client-1", now)
+
+	if errExpired != errNotFound {
+		t.Fatalf("expected expired and not-found to return same error, got expired=%v, not-found=%v", errExpired, errNotFound)
+	}
+
+	if errExpired != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound, got %v", errExpired)
 	}
 }
 

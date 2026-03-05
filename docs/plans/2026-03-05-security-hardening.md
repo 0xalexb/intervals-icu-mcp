@@ -103,10 +103,10 @@ Auth codes and refresh tokens have no size limit unlike clients (capped at 1000)
 
 GitHub's `error` and `error_description` query parameters are forwarded verbatim in callback error responses. Sanitize to prevent content injection.
 
-- [ ] Add a set of known GitHub OAuth error codes (e.g., `access_denied`, `temporarily_unavailable`)
-- [ ] In `validateCallbackParams`, replace unrecognized error codes with `server_error` and replace unrecognized descriptions with a generic message
-- [ ] Write tests for known and unknown error code sanitization
-- [ ] Run project test suite - must pass before task 7
+- [x] Add a set of known GitHub OAuth error codes (e.g., `access_denied`, `temporarily_unavailable`)
+- [x] In `validateCallbackParams`, replace unrecognized error codes with `server_error` and replace unrecognized descriptions with a generic message
+- [x] Write tests for known and unknown error code sanitization
+- [x] Run project test suite - must pass before task 7
 
 ### Task 7: Quick low-severity fixes (L1, L4, L5)
 

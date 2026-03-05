@@ -592,6 +592,192 @@ func TestHandleCallback_GitHubErrorWithValidState(t *testing.T) {
 	}
 }
 
+func TestHandleCallback_GitHubErrorUnknownCode(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	params := url.Values{
+		"error":             {"<script>alert(1)</script>"},
+		"error_description": {"injected"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	var errResp oauthErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("decoding error response: %v", err)
+	}
+
+	if errResp.Error != "server_error" {
+		t.Fatalf("expected error code 'server_error', got %q", errResp.Error)
+	}
+
+	if errResp.Description != genericErrorDescription {
+		t.Fatalf("expected generic description, got %q", errResp.Description)
+	}
+}
+
+func TestHandleCallback_GitHubErrorKnownCodeBadDescription(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	params := url.Values{
+		"error":             {"access_denied"},
+		"error_description": {"<img src=x onerror=alert(1)>"},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+
+	var errResp oauthErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("decoding error response: %v", err)
+	}
+
+	if errResp.Error != "access_denied" {
+		t.Fatalf("expected error code 'access_denied', got %q", errResp.Error)
+	}
+
+	if errResp.Description != genericErrorDescription {
+		t.Fatalf("expected generic description, got %q", errResp.Description)
+	}
+}
+
+func TestHandleCallback_GitHubErrorWithValidStateUnknownCode(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	as := authorizeState{
+		ClientID:      "my-client",
+		RedirectURI:   "https://client.example.com/callback",
+		OriginalState: "client-state-456",
+		Nonce:         "nonce",
+		CreatedAt:     time.Now().Unix(),
+	}
+
+	signedState, err := h.signState(as)
+	if err != nil {
+		t.Fatalf("signing state: %v", err)
+	}
+
+	params := url.Values{
+		"error":             {"totally_bogus_error"},
+		"error_description": {"something weird"},
+		"state":             {signedState},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	loc := rec.Header().Get("Location")
+	locURL, err := url.Parse(loc)
+
+	if err != nil {
+		t.Fatalf("parsing redirect location: %v", err)
+	}
+
+	if locURL.Query().Get("error") != "server_error" {
+		t.Fatalf("expected error=server_error in redirect, got %q", locURL.Query().Get("error"))
+	}
+
+	if locURL.Query().Get("error_description") != genericErrorDescription {
+		t.Fatalf("expected generic description in redirect, got %q", locURL.Query().Get("error_description"))
+	}
+}
+
+func TestSanitizeGitHubError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		errCode      string
+		description  string
+		wantCode     string
+		wantDesc     string
+	}{
+		{
+			name:        "known code with clean description",
+			errCode:     "access_denied",
+			description: "user denied access",
+			wantCode:    "access_denied",
+			wantDesc:    "user denied access",
+		},
+		{
+			name:        "known code with HTML in description",
+			errCode:     "temporarily_unavailable",
+			description: "<b>bad</b>",
+			wantCode:    "temporarily_unavailable",
+			wantDesc:    genericErrorDescription,
+		},
+		{
+			name:        "unknown code",
+			errCode:     "custom_error",
+			description: "some description",
+			wantCode:    "server_error",
+			wantDesc:    genericErrorDescription,
+		},
+		{
+			name:        "empty description",
+			errCode:     "access_denied",
+			description: "",
+			wantCode:    "access_denied",
+			wantDesc:    genericErrorDescription,
+		},
+		{
+			name:        "description with non-ASCII",
+			errCode:     "server_error",
+			description: "error \x00 null byte",
+			wantCode:    "server_error",
+			wantDesc:    genericErrorDescription,
+		},
+		{
+			name:        "description exceeds max length",
+			errCode:     "access_denied",
+			description: strings.Repeat("a", 257),
+			wantCode:    "access_denied",
+			wantDesc:    genericErrorDescription,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotCode, gotDesc := sanitizeGitHubError(tt.errCode, tt.description)
+
+			if gotCode != tt.wantCode {
+				t.Errorf("code = %q, want %q", gotCode, tt.wantCode)
+			}
+
+			if gotDesc != tt.wantDesc {
+				t.Errorf("description = %q, want %q", gotDesc, tt.wantDesc)
+			}
+		})
+	}
+}
+
 func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
 	t.Parallel()
 

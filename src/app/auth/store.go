@@ -207,7 +207,10 @@ func (s *Store) ValidateAndConsumeAuthCode(
 
 	delete(s.authCodes, code)
 
-	return ac, nil
+	cp := *ac
+	cp.Scopes = cloneStrings(ac.Scopes)
+
+	return &cp, nil
 }
 
 // SaveRefreshToken stores a refresh token. Returns an error if the maximum number
@@ -334,7 +337,7 @@ func (s *Store) SaveClient(client *RegisteredClient) error {
 // GetClient retrieves a registered client by its client ID.
 // Returns a deep copy to prevent callers from mutating store data.
 // Returns an error if the client is not found or has expired.
-func (s *Store) GetClient(clientID string) (*RegisteredClient, error) {
+func (s *Store) GetClient(clientID string, now time.Time) (*RegisteredClient, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -343,7 +346,7 @@ func (s *Store) GetClient(clientID string) (*RegisteredClient, error) {
 		return nil, errClientNotFound
 	}
 
-	if time.Now().After(client.CreatedAt.Add(clientTTL)) {
+	if now.After(client.CreatedAt.Add(clientTTL)) {
 		return nil, errClientNotFound
 	}
 

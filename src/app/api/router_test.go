@@ -175,7 +175,10 @@ func TestNewRouter_RecoveryCatchesPanics(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
@@ -197,7 +200,10 @@ func TestNewRouter_RequestIDPresent(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
@@ -267,7 +273,10 @@ func TestNewRouter_ExposeHeadersMcpSessionId(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
@@ -352,7 +361,10 @@ func TestNewRouter_CompressGzip(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
@@ -394,7 +406,10 @@ func TestNewRouter_RateLimitExceeded(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
@@ -458,7 +473,10 @@ func TestNewRouter_MaxRequestSizeRejects(t *testing.T) {
 	})
 
 	secret := appauth.JWTSecret("test-secret-for-router-tests")
-	token, _ := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	token, err := appauth.IssueAccessToken(secret, testIssuer, 3600_000_000_000, "testuser", []string{"mcp"})
+	if err != nil {
+		t.Fatalf("issuing access token: %v", err)
+	}
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 

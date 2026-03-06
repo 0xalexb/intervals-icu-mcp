@@ -312,7 +312,7 @@ func TestHandleCallback_SuccessWithAllowList(t *testing.T) {
 
 	ghUserSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"login": "alice"})
+		json.NewEncoder(w).Encode(map[string]any{"login": "Alice"})
 	}))
 	defer ghUserSrv.Close()
 
@@ -357,12 +357,23 @@ func TestHandleCallback_SuccessWithAllowList(t *testing.T) {
 		t.Fatalf("expected redirect to client.example.com, got %q", loc.Host)
 	}
 
-	if loc.Query().Get("code") == "" {
+	authCode := loc.Query().Get("code")
+	if authCode == "" {
 		t.Fatal("expected non-empty code in redirect")
 	}
 
 	if loc.Query().Get("state") != "client-state" {
 		t.Fatalf("expected state 'client-state', got %q", loc.Query().Get("state"))
+	}
+
+	// Verify the stored auth code has a lowercase username (case normalization).
+	storedCode, err := h.store.GetAuthCode(authCode, time.Now())
+	if err != nil {
+		t.Fatalf("retrieving stored auth code: %v", err)
+	}
+
+	if storedCode.GitHubUsername != "alice" {
+		t.Fatalf("expected lowercase username 'alice', got %q", storedCode.GitHubUsername)
 	}
 }
 
@@ -519,6 +530,8 @@ func TestHandleCallback_MissingCode(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_request")
 }
 
 func TestHandleCallback_GitHubError(t *testing.T) {
@@ -1245,21 +1258,6 @@ func TestHandleToken_UnsupportedGrantType(t *testing.T) {
 	assertOAuthErrorCode(t, rec.Body.Bytes(), "unsupported_grant_type")
 }
 
-func TestHandleToken_MethodNotAllowed(t *testing.T) {
-	t.Parallel()
-
-	h := newTestHandler("", "")
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/token", http.NoBody)
-
-	h.HandleToken(rec, req)
-
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405, got %d", rec.Code)
-	}
-}
-
 func TestHandleRegister_Success(t *testing.T) {
 	t.Parallel()
 
@@ -1298,7 +1296,7 @@ func TestHandleRegister_Success(t *testing.T) {
 		t.Fatalf("expected default grant_types [authorization_code], got %v", resp.GrantTypes)
 	}
 
-	client, err := h.store.GetClient(resp.ClientID)
+	client, err := h.store.GetClient(resp.ClientID, time.Now())
 	if err != nil {
 		t.Fatalf("client not found in store: %v", err)
 	}
@@ -1449,6 +1447,8 @@ func TestHandleRegister_InvalidJSON(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
+
+	assertOAuthErrorCode(t, rec.Body.Bytes(), "invalid_client_metadata")
 }
 
 func TestHandleRegister_HTTPNonLoopbackRedirectURI(t *testing.T) {
@@ -1575,21 +1575,6 @@ func TestHandleToken_AuthorizationCodeGrant_NoRefreshTokenWhenNotRegistered(t *t
 
 	if resp.RefreshToken != "" {
 		t.Fatalf("expected empty refresh_token for client without refresh_token grant, got %q", resp.RefreshToken)
-	}
-}
-
-func TestHandleRegister_MethodNotAllowed(t *testing.T) {
-	t.Parallel()
-
-	h := newTestHandler("", "")
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/register", http.NoBody)
-
-	h.HandleRegister(rec, req)
-
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405, got %d", rec.Code)
 	}
 }
 
@@ -1847,6 +1832,29 @@ func TestVerifyState_NoSeparator(t *testing.T) {
 	}
 }
 
+func TestVerifyState_Expired(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHandler("", "")
+
+	as := authorizeState{
+		ClientID:    "test-client",
+		RedirectURI: "https://client.example.com/callback",
+		Nonce:       "nonce",
+		CreatedAt:   time.Now().Add(-(stateTTL + time.Minute)).Unix(),
+	}
+
+	signed, err := h.signState(as)
+	if err != nil {
+		t.Fatalf("signing state: %v", err)
+	}
+
+	_, err = h.verifyState(signed)
+	if err == nil {
+		t.Fatal("expected error for expired state")
+	}
+}
+
 func TestDeriveStateKey_ProducesDifferentKey(t *testing.T) {
 	t.Parallel()
 
@@ -1956,16 +1964,20 @@ func TestParseScopes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := parseScopes(tt.input)
-		if len(result) != len(tt.expected) {
-			t.Fatalf("parseScopes(%q): expected %v, got %v", tt.input, tt.expected, result)
-		}
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
 
-		for i := range result {
-			if result[i] != tt.expected[i] {
-				t.Fatalf("parseScopes(%q)[%d]: expected %q, got %q", tt.input, i, tt.expected[i], result[i])
+			result := parseScopes(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Fatalf("parseScopes(%q): expected %v, got %v", tt.input, tt.expected, result)
 			}
-		}
+
+			for i := range result {
+				if result[i] != tt.expected[i] {
+					t.Fatalf("parseScopes(%q)[%d]: expected %q, got %q", tt.input, i, tt.expected[i], result[i])
+				}
+			}
+		})
 	}
 }
 

@@ -447,6 +447,225 @@ func TestConsumeRefreshToken_NotFound(t *testing.T) {
 	}
 }
 
+func TestConsumeRefreshToken_ClientIDMismatch(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	token := &RefreshToken{
+		Token:         "rt-client-mismatch",
+		ClientID:      "client-A",
+		GitHubUsername: "alice",
+		Scopes:        []string{"mcp"},
+		ExpiresAt:     now.Add(24 * time.Hour),
+	}
+
+	if err := store.SaveRefreshToken(token); err != nil {
+		t.Fatalf("saving refresh token: %v", err)
+	}
+
+	_, err := store.ConsumeRefreshToken("rt-client-mismatch", "client-B", now)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound for client mismatch, got %v", err)
+	}
+
+	// Verify the token was NOT consumed (still in store).
+	got, err := store.ConsumeRefreshToken("rt-client-mismatch", "client-A", now)
+	if err != nil {
+		t.Fatalf("token should still be available after mismatched consume: %v", err)
+	}
+
+	if got.Token != "rt-client-mismatch" {
+		t.Fatalf("expected token 'rt-client-mismatch', got %q", got.Token)
+	}
+}
+
+func TestRotateRefreshToken_Success(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	oldToken := &RefreshToken{
+		Token:         "old-rt",
+		ClientID:      "client-1",
+		GitHubUsername: "alice",
+		Scopes:        []string{"mcp"},
+		ExpiresAt:     now.Add(24 * time.Hour),
+	}
+
+	if err := store.SaveRefreshToken(oldToken); err != nil {
+		t.Fatalf("saving old token: %v", err)
+	}
+
+	newToken := &RefreshToken{
+		Token:     "new-rt",
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+
+	got, err := store.RotateRefreshToken("old-rt", "client-1", now, newToken)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got.Token != "old-rt" {
+		t.Fatalf("expected old token 'old-rt', got %q", got.Token)
+	}
+
+	// Verify identity fields carried over to the new token.
+	if newToken.ClientID != "client-1" {
+		t.Fatalf("expected new token ClientID 'client-1', got %q", newToken.ClientID)
+	}
+
+	if newToken.GitHubUsername != "alice" {
+		t.Fatalf("expected new token GitHubUsername 'alice', got %q", newToken.GitHubUsername)
+	}
+
+	if len(newToken.Scopes) != 1 || newToken.Scopes[0] != "mcp" {
+		t.Fatalf("expected new token Scopes [mcp], got %v", newToken.Scopes)
+	}
+
+	// Verify old token is gone.
+	_, err = store.ConsumeRefreshToken("old-rt", "client-1", now)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected old token to be consumed, got %v", err)
+	}
+
+	// Verify new token exists.
+	newGot, err := store.ConsumeRefreshToken("new-rt", "client-1", now)
+	if err != nil {
+		t.Fatalf("new token should be available: %v", err)
+	}
+
+	if newGot.GitHubUsername != "alice" {
+		t.Fatalf("expected new token username 'alice', got %q", newGot.GitHubUsername)
+	}
+}
+
+func TestRotateRefreshToken_NotFound(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	newToken := &RefreshToken{
+		Token:     "new-rt",
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+
+	_, err := store.RotateRefreshToken("nonexistent", "client-1", now, newToken)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound, got %v", err)
+	}
+}
+
+func TestRotateRefreshToken_ClientIDMismatch(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	oldToken := &RefreshToken{
+		Token:         "rt-rotate-mismatch",
+		ClientID:      "client-A",
+		GitHubUsername: "alice",
+		ExpiresAt:     now.Add(24 * time.Hour),
+	}
+
+	if err := store.SaveRefreshToken(oldToken); err != nil {
+		t.Fatalf("saving old token: %v", err)
+	}
+
+	newToken := &RefreshToken{
+		Token:     "new-rt",
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+
+	_, err := store.RotateRefreshToken("rt-rotate-mismatch", "client-B", now, newToken)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound for client mismatch, got %v", err)
+	}
+
+	// Verify old token is still available.
+	got, err := store.ConsumeRefreshToken("rt-rotate-mismatch", "client-A", now)
+	if err != nil {
+		t.Fatalf("old token should still be available: %v", err)
+	}
+
+	if got.Token != "rt-rotate-mismatch" {
+		t.Fatalf("expected token 'rt-rotate-mismatch', got %q", got.Token)
+	}
+}
+
+func TestRotateRefreshToken_Expired(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	oldToken := &RefreshToken{
+		Token:         "rt-rotate-expired",
+		ClientID:      "client-1",
+		GitHubUsername: "alice",
+		ExpiresAt:     now.Add(-1 * time.Hour),
+	}
+
+	if err := store.SaveRefreshToken(oldToken); err != nil {
+		t.Fatalf("saving old token: %v", err)
+	}
+
+	newToken := &RefreshToken{
+		Token:     "new-rt",
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+
+	_, err := store.RotateRefreshToken("rt-rotate-expired", "client-1", now, newToken)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expected errRefreshTokenNotFound for expired token, got %v", err)
+	}
+
+	// Verify the expired token was cleaned up.
+	_, err = store.ConsumeRefreshToken("rt-rotate-expired", "client-1", now)
+	if err != errRefreshTokenNotFound {
+		t.Fatalf("expired token should be deleted after failed rotation, got %v", err)
+	}
+}
+
+func TestRotateRefreshToken_SucceedsAtCapByFreeingSlot(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	now := time.Now()
+
+	// Fill the store to capacity.
+	for i := range maxRefreshTokens {
+		if err := store.SaveRefreshToken(&RefreshToken{
+			Token:     fmt.Sprintf("filler-%d", i),
+			ClientID:  "client-1",
+			ExpiresAt: now.Add(24 * time.Hour),
+		}); err != nil {
+			t.Fatalf("saving filler token %d: %v", i, err)
+		}
+	}
+
+	// Rotate filler-0 -> new-rt-cap. Deleting the old token frees exactly one slot,
+	// allowing the new token to be saved even though the store was at capacity.
+	newToken := &RefreshToken{
+		Token:     "new-rt-cap",
+		ExpiresAt: now.Add(24 * time.Hour),
+	}
+
+	got, err := store.RotateRefreshToken("filler-0", "client-1", now, newToken)
+	if err != nil {
+		t.Fatalf("rotation at cap should succeed (old token frees one slot): %v", err)
+	}
+
+	if got.Token != "filler-0" {
+		t.Fatalf("expected old token 'filler-0', got %q", got.Token)
+	}
+}
+
 func TestSaveClient_And_GetClient(t *testing.T) {
 	t.Parallel()
 
@@ -464,7 +683,7 @@ func TestSaveClient_And_GetClient(t *testing.T) {
 		t.Fatalf("unexpected error saving client: %v", err)
 	}
 
-	got, err := store.GetClient("client-abc")
+	got, err := store.GetClient("client-abc", time.Now())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -491,7 +710,7 @@ func TestGetClient_NotFound(t *testing.T) {
 
 	store := NewStore()
 
-	_, err := store.GetClient("nonexistent")
+	_, err := store.GetClient("nonexistent", time.Now())
 	if err == nil {
 		t.Fatal("expected error for nonexistent client")
 	}
@@ -526,7 +745,7 @@ func TestSaveClient_Overwrite(t *testing.T) {
 		t.Fatalf("unexpected error saving client2: %v", err)
 	}
 
-	got, err := store.GetClient("client-overwrite")
+	got, err := store.GetClient("client-overwrite", time.Now())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -551,7 +770,7 @@ func TestNewStore_EmptyMaps(t *testing.T) {
 		t.Fatalf("expected errRefreshTokenNotFound on empty store, got %v", err)
 	}
 
-	_, err = store.GetClient("any")
+	_, err = store.GetClient("any", time.Now())
 	if err != errClientNotFound {
 		t.Fatalf("expected errClientNotFound on empty store, got %v", err)
 	}
@@ -672,12 +891,12 @@ func TestEvictExpired_EvictsExpiredClients(t *testing.T) {
 
 	store.evictExpired(now)
 
-	_, err := store.GetClient("old-client")
+	_, err := store.GetClient("old-client", now)
 	if err != errClientNotFound {
 		t.Fatalf("expected expired client to be evicted, got %v", err)
 	}
 
-	got, err := store.GetClient("fresh-client")
+	got, err := store.GetClient("fresh-client", now)
 	if err != nil {
 		t.Fatalf("expected fresh client to survive eviction: %v", err)
 	}
@@ -710,7 +929,7 @@ func TestSaveClient_AutoEvictsExpiredOnCapHit(t *testing.T) {
 		t.Fatalf("expected auto-eviction to free slots, got %v", err)
 	}
 
-	got, err := store.GetClient("auto-evicted")
+	got, err := store.GetClient("auto-evicted", time.Now())
 	if err != nil {
 		t.Fatalf("expected new client to exist: %v", err)
 	}

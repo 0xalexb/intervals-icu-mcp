@@ -24,7 +24,7 @@
 
   Resolution: Updated hjarta-di to v0.5.0 which supports full origin matching. CORS middleware now receives full origin URLs (scheme+host+port) directly via WithAllowedOrigins instead of stripped hostnames. The Hostnames() method was removed.
 
-  1. Credentials Visible in Process Listing
+  1. Credentials Visible in Process Listing [RESOLVED]
 
   File: main.go:51-59
 
@@ -32,10 +32,12 @@
 
   Mitigation: You mentioned planning SQLite/Vault integration — that would resolve this. Alternatively, read from environment variables or a config file.
 
+  Resolution: Added environment variable fallbacks (GITHUB_CLIENT_SECRET, JWT_SECRET). When CLI flags are empty, values are read from environment variables, avoiding exposure in process listings.
+
   ---
   MEDIUM
 
-  1. Unauthenticated Registration DoS
+  1. Unauthenticated Registration DoS [RESOLVED]
 
   Files: handler.go:HandleRegister, store.go:maxClients=1000
 
@@ -43,7 +45,9 @@
 
   Mitigation: Per-endpoint rate limiting on /oauth/register, optional --registration-token flag, or shorter client TTL.
 
-  1. Auth Code Consumed Before PKCE/Client Validation
+  Resolution: Added a dedicated per-IP rate limiter (2 req/s, burst 5) on POST /oauth/register, preventing rapid client slot exhaustion from a single source.
+
+  1. Auth Code Consumed Before PKCE/Client Validation [RESOLVED]
 
   File: handler.go:507-518
 
@@ -51,13 +55,17 @@
 
   Mitigation: Validate PKCE and binding checks before consuming the code, or use a read-then-validate-then-delete pattern.
 
-  1. No Cap on Auth Codes / Refresh Tokens in Store
+  Resolution: Replaced ConsumeAuthCode with ValidateAndConsumeAuthCode, which atomically retrieves, validates (via caller-supplied function), and only deletes the code after all PKCE/client_id/redirect_uri checks pass under a single write lock.
+
+  1. No Cap on Auth Codes / Refresh Tokens in Store [RESOLVED]
 
   File: store.go:SaveAuthCode, store.go:SaveRefreshToken
 
   Unlike clients (capped at 1000), auth codes and refresh tokens have no size limit. Between 5-minute cleanup cycles, tokens can accumulate. Practical impact is limited by GitHub's rate limits on the OAuth flow.
 
   Mitigation: Add caps similar to maxClients, or add per-user limits.
+
+  Resolution: Added caps for auth codes (10,000) and refresh tokens (10,000) with expired-entry eviction when caps are reached. SaveAuthCode and SaveRefreshToken now return errors when caps are exceeded.
 
   1. Global Rate Limiting Is Not Per-IP [RESOLVED]
 
@@ -69,7 +77,7 @@
 
   Resolution: Updated hjarta-di to v0.5.0 which provides PerIPRateLimit middleware with sliding window per-IP tracking. Replaced global RateLimit with PerIPRateLimit for both the main middleware stack and the /oauth/register endpoint.
 
-  1. JWT Secret Dual-Use for State HMAC
+  1. JWT Secret Dual-Use for State HMAC [RESOLVED]
 
   Files: handler.go:756, jwt.go:50
 
@@ -77,7 +85,9 @@
 
   Mitigation: Derive a separate state key via HKDF, or add a dedicated --state-secret flag.
 
-  1. GitHub Error Parameters Reflected Verbatim
+  Resolution: Handler now derives a separate state-signing key from the JWT secret via HKDF (golang.org/x/crypto/hkdf) during NewHandler construction. The JWT secret and state HMAC key are cryptographically independent.
+
+  1. GitHub Error Parameters Reflected Verbatim [RESOLVED]
 
   File: handler.go:364-368
 
@@ -85,21 +95,23 @@
 
   Mitigation: Allowlist known error codes; sanitize descriptions.
 
+  Resolution: Added a known-codes allowlist for GitHub OAuth error parameters. Unrecognized error codes are replaced with "server_error" and unrecognized descriptions with a generic message.
+
   ---
   LOW
 
   ┌─────┬──────────────────────────────────────────────────────────────┬───────────────────────────┐
   │  #  │                           Finding                            │           File            │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
-  │ L1  │ Unnecessary DELETE method in CORS config                     │ router.go:50              │
+  │ L1  │ Unnecessary DELETE method in CORS config [INVALID]             │ router.go:50              │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
   │ L2  │ localhost accepted as loopback (may resolve to non-loopback) │ handler.go:isLoopbackHost │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
   │ L3  │ State replayable within 10-min TTL (no nonce revocation)     │ handler.go:verifyState    │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
-  │ L4  │ Missing nbf claim in JWT                                     │ jwt.go:39-46              │
+  │ L4  │ Missing nbf claim in JWT [RESOLVED]                           │ jwt.go:39-46              │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
-  │ L5  │ Expired token error leaks existence info                     │ store.go:183-186          │
+  │ L5  │ Expired token error leaks existence info [RESOLVED]           │ store.go:183-186          │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤
   │ L6  │ NewTestClient exported without timeout                       │ clients/github/testing.go │
   ├─────┼──────────────────────────────────────────────────────────────┼───────────────────────────┤

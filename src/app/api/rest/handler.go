@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -42,6 +43,9 @@ const (
 	scopeMCP = "mcp"
 
 	genericErrorDescription = "an error occurred during authorization"
+
+	maxRedirectURIs    = 10
+	maxClientNameBytes = 256
 )
 
 var (
@@ -52,6 +56,8 @@ var (
 	errRedirectURIMissingHost    = errors.New("redirect_uri must have a host")
 	errRedirectURIHasFragment    = errors.New("redirect_uri must not contain a fragment")
 	errRedirectURINotLoopback    = errors.New("redirect_uri with http scheme is only allowed for loopback addresses")
+	errTooManyRedirectURIs       = errors.New("too many redirect_uris")
+	errClientNameTooLong         = errors.New("client_name too long")
 	errUnsupportedGrantType = errors.New("unsupported grant_type")
 )
 
@@ -160,7 +166,7 @@ func (h *Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := h.store.GetClient(authState.ClientID)
+	client, err := h.store.GetClient(authState.ClientID, time.Now())
 	if err != nil {
 		writeOAuthError(w, "invalid_request", "unknown client_id", http.StatusBadRequest)
 
@@ -454,12 +460,6 @@ func (h *Handler) resolveGitHubUser(
 // HandleToken handles POST /oauth/token. It supports grant_type=authorization_code
 // (with PKCE validation) and grant_type=refresh_token (with token rotation).
 func (h *Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeOAuthError(w, "invalid_request", "method must be POST", http.StatusMethodNotAllowed)
-
-		return
-	}
-
 	if err := r.ParseForm(); err != nil {
 		writeOAuthError(w, "invalid_request", "malformed form body", http.StatusBadRequest)
 
@@ -488,7 +488,7 @@ func (h *Handler) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	client, err := h.store.GetClient(authCode.ClientID)
+	client, err := h.store.GetClient(authCode.ClientID, time.Now())
 	if err != nil {
 		writeOAuthError(w, "invalid_grant", "unknown client", http.StatusBadRequest)
 
@@ -637,7 +637,7 @@ func (h *Handler) validateRefreshTokenGrant(r *http.Request) (string, string, *o
 		}
 	}
 
-	client, err := h.store.GetClient(clientID)
+	client, err := h.store.GetClient(clientID, time.Now())
 	if err != nil {
 		return "", "", &oauthValidationError{
 			"invalid_grant", "unknown client", http.StatusBadRequest,
@@ -706,12 +706,6 @@ type registrationResponse struct {
 
 // HandleRegister handles POST /oauth/register for dynamic client registration per RFC 7591.
 func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeOAuthError(w, "invalid_request", "method must be POST", http.StatusMethodNotAllowed)
-
-		return
-	}
-
 	var req registrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeOAuthError(w, "invalid_client_metadata", "malformed JSON body", http.StatusBadRequest)
@@ -719,15 +713,9 @@ func (h *Handler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
-		writeOAuthError(w, "invalid_client_metadata", err.Error(), http.StatusBadRequest)
-
-		return
-	}
-
-	grantTypes, grantErr := validateGrantTypes(req.GrantTypes)
-	if grantErr != nil {
-		writeOAuthError(w, "invalid_client_metadata", grantErr.Error(), http.StatusBadRequest)
+	grantTypes, valErr := validateRegistrationRequest(&req)
+	if valErr != nil {
+		writeOAuthError(w, "invalid_client_metadata", valErr.Error(), http.StatusBadRequest)
 
 		return
 	}
@@ -773,43 +761,78 @@ const (
 	schemeHTTPS = "https"
 )
 
-// validateRedirectURIs checks that redirect URIs are present, use http/https scheme,
-// have a non-empty host, and contain no fragment (per OAuth 2.1 Section 2.3.1).
-// HTTP scheme is only allowed for loopback addresses (127.0.0.1, [::1], localhost).
+// validateRegistrationRequest validates client_name length, redirect URIs, and grant types.
+func validateRegistrationRequest(req *registrationRequest) ([]string, error) {
+	if len(req.ClientName) > maxClientNameBytes {
+		return nil, errClientNameTooLong
+	}
+
+	if err := validateRedirectURIs(req.RedirectURIs); err != nil {
+		return nil, err
+	}
+
+	return validateGrantTypes(req.GrantTypes)
+}
+
+// validateRedirectURIs checks that redirect URIs are present and within limits,
+// then delegates per-URI validation to validateRedirectURI.
 func validateRedirectURIs(uris []string) error {
 	if len(uris) == 0 {
 		return errRedirectURIsRequired
 	}
 
+	if len(uris) > maxRedirectURIs {
+		return fmt.Errorf("%w: maximum %d allowed", errTooManyRedirectURIs, maxRedirectURIs)
+	}
+
 	for _, uri := range uris {
-		parsed, err := url.Parse(uri)
-		if err != nil {
-			return fmt.Errorf("%w: %s", errInvalidRedirectURI, uri)
-		}
-
-		if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
-			return fmt.Errorf("%w: %s", errRedirectURIBadScheme, uri)
-		}
-
-		if parsed.Hostname() == "" {
-			return fmt.Errorf("%w: %s", errRedirectURIMissingHost, uri)
-		}
-
-		if parsed.Fragment != "" {
-			return fmt.Errorf("%w: %s", errRedirectURIHasFragment, uri)
-		}
-
-		if parsed.Scheme == schemeHTTP && !isLoopbackHost(parsed.Hostname()) {
-			return fmt.Errorf("%w: %s", errRedirectURINotLoopback, uri)
+		if err := validateRedirectURI(uri); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
+// validateRedirectURI checks a single redirect URI uses http/https scheme,
+// has a non-empty host, and contains no fragment (per OAuth 2.1 Section 2.3.1).
+// HTTP scheme is only allowed for loopback addresses (127.0.0.1, [::1], localhost).
+func validateRedirectURI(uri string) error {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("%w: %s", errInvalidRedirectURI, uri)
+	}
+
+	if parsed.Scheme != schemeHTTP && parsed.Scheme != schemeHTTPS {
+		return fmt.Errorf("%w: %s", errRedirectURIBadScheme, uri)
+	}
+
+	if parsed.Hostname() == "" {
+		return fmt.Errorf("%w: %s", errRedirectURIMissingHost, uri)
+	}
+
+	if parsed.Fragment != "" {
+		return fmt.Errorf("%w: %s", errRedirectURIHasFragment, uri)
+	}
+
+	if parsed.Scheme == schemeHTTP && !isLoopbackHost(parsed.Hostname()) {
+		return fmt.Errorf("%w: %s", errRedirectURINotLoopback, uri)
+	}
+
+	return nil
+}
+
 // isLoopbackHost returns true if the hostname is a loopback address.
+// It covers the full 127.0.0.0/8 range and IPv6 ::1 via net.IP.IsLoopback,
+// plus "localhost" as a hostname.
 func isLoopbackHost(hostname string) bool {
-	return hostname == "127.0.0.1" || hostname == "::1" || hostname == "localhost"
+	if hostname == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(hostname)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // validateGrantTypes validates and defaults the grant_types list.
@@ -993,7 +1016,8 @@ func parseScopes(scope string) []string {
 func isKnownOAuthError(code string) bool {
 	switch code {
 	case "access_denied", "temporarily_unavailable", "server_error", "invalid_request",
-		"unauthorized_client", "unsupported_response_type", "invalid_scope", "interaction_required":
+		"unauthorized_client", "unsupported_response_type", "invalid_scope", "interaction_required",
+		"application_suspended", "redirect_uri_mismatch":
 		return true
 	default:
 		return false

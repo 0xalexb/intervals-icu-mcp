@@ -105,10 +105,52 @@ go build -ldflags "-X github.com/0xalexb/hjarta-di.Version=1.0.0 -X github.com/0
 | `get_wellness` | Returns wellness data for a specific date. | `date` (required) |
 | `get_wellness_trend` | Returns wellness data over a date range. | `oldest` (required), `newest` (required) |
 
+## Docker
+
+Pull the latest image:
+
+```sh
+docker pull ghcr.io/0xalexb/intervals-icu-mcp:latest
+```
+
+Run in streamable mode (default CMD):
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e INTERVALS_API_KEY=... \
+  -e INTERVALS_ATHLETE_ID=... \
+  -e GITHUB_CLIENT_SECRET=... \
+  -e JWT_SECRET=... \
+  ghcr.io/0xalexb/intervals-icu-mcp:latest \
+  --github-client-id <id> \
+  --auth-issuer https://mcp.example.com
+```
+
+Run in stdio mode (for MCP clients that manage the process):
+
+```sh
+docker run -i --rm \
+  -e INTERVALS_API_KEY=... \
+  -e INTERVALS_ATHLETE_ID=... \
+  ghcr.io/0xalexb/intervals-icu-mcp:latest \
+  --transport stdio
+```
+
+Available tags: `X.Y.Z` (exact), `X.Y` (minor track), `latest`.
+
 ## Development
 
 ```sh
 go build ./src/...
 go test ./src/...
 golangci-lint run ./src/...
+```
+
+Local Docker builds via the `Makefile`:
+
+```sh
+make build VERSION=dev          # native-platform image
+make push VERSION=v0.2.0        # multi-arch push to GHCR (requires docker login ghcr.io)
+make test
+make lint
 ```

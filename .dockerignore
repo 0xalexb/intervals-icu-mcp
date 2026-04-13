@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vscode
+.claude
+docs
+tests
+CLAUDE.md
+LICENSE
+.golangci.yml
+Makefile
+Dockerfile
+.dockerignore
+coverage.*
+*.out

@@ -57,8 +57,8 @@ Bump the `github.com/modelcontextprotocol/go-sdk` dependency from v1.2.0 to v1.5
 **Files:**
 - Possibly modify: `.golangci.yml` if depguard or other linter flags new issues
 
-- [ ] Run `golangci-lint run ./src/...` and confirm clean output
-- [ ] If depguard flags a newly-imported package, add it to the correct allow-list in `.golangci.yml` with a one-line comment
+- [x] Run `golangci-lint run ./src/...` and confirm clean output
+- [x] If depguard flags a newly-imported package, add it to the correct allow-list in `.golangci.yml` with a one-line comment
 
 ### Task 5: Update documentation
 

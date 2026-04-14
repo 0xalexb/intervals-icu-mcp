@@ -38,9 +38,9 @@ Bump the `github.com/modelcontextprotocol/go-sdk` dependency from v1.2.0 to v1.5
 - Possibly modify: any `src/` file if a breaking API change is encountered (not expected)
 - Possibly modify: `.golangci.yml` if depguard flags a newly-imported package
 
-- [ ] Run `go build ./src/...` and confirm clean compilation
-- [ ] If build fails due to renamed/changed SDK types, fix call sites narrowly (do not restructure)
-- [ ] If depguard flags a new direct import, add it to the correct allow-list in `.golangci.yml`
+- [x] Run `go build ./src/...` and confirm clean compilation
+- [x] If build fails due to renamed/changed SDK types, fix call sites narrowly (do not restructure)
+- [x] If depguard flags a new direct import, add it to the correct allow-list in `.golangci.yml`
 
 ### Task 3: Test verification
 

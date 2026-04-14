@@ -61,7 +61,7 @@ func TestNewRouter_MCPHandlerRequiresAuth(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -87,7 +87,7 @@ func TestNewRouter_MCPHandlerReachableWithValidToken(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -110,7 +110,7 @@ func TestNewRouter_MCPSubpathRequiresAuth(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/mcp/sse", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/mcp/sse", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -130,7 +130,7 @@ func TestNewRouter_OtherPathNotReachable(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/other", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/other", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -154,7 +154,7 @@ func TestNewRouter_RootNotReachable(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -182,7 +182,7 @@ func TestNewRouter_RecoveryCatchesPanics(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -207,7 +207,7 @@ func TestNewRouter_RequestIDPresent(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -227,7 +227,7 @@ func TestNewRouter_CORSPreflightHeaders(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodOptions, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/mcp", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec := httptest.NewRecorder()
@@ -280,7 +280,7 @@ func TestNewRouter_ExposeHeadersMcpSessionId(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://localhost:8080")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -301,7 +301,7 @@ func TestNewRouter_CORSRejectsNonLocalhostOrigin(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://evil.com")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -333,7 +333,7 @@ func TestNewRouter_CORSAllowsLoopbackVariants(t *testing.T) {
 
 		router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-		req := httptest.NewRequestWithContext(t.Context(),http.MethodOptions, "/mcp", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/mcp", nil)
 		req.Header.Set("Origin", origin)
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		rec := httptest.NewRecorder()
@@ -368,7 +368,7 @@ func TestNewRouter_CompressGzip(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -415,13 +415,13 @@ func TestNewRouter_RateLimitExceeded(t *testing.T) {
 
 	// Per-IP sliding window: effective limit = rateLimitRate + rateLimitBurst = 100 + 200 = 300.
 	for range 300 {
-		req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 	}
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -442,14 +442,14 @@ func TestNewRouter_RegisterRateLimitExceeded(t *testing.T) {
 
 	// Per-IP sliding window: effective limit = registerRateLimitRate + registerRateLimitBurst = 2 + 5 = 7.
 	for range 7 {
-		req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 	}
 
 	// The next request should be rate-limited.
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/oauth/register", strings.NewReader(`{"redirect_uris":["http://localhost/cb"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -481,7 +481,7 @@ func TestNewRouter_MaxRequestSizeRejects(t *testing.T) {
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
 	oversized := bytes.NewReader(make([]byte, 1048576+1))
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", oversized)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", oversized)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -502,7 +502,7 @@ func TestNewRouter_CORSAllowsCustomOrigin(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, customOrigins))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodOptions, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/mcp", nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec := httptest.NewRecorder()
@@ -530,7 +530,7 @@ func TestNewRouter_CORSRejectsDifferentPortSameHostname(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, origins))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodOptions, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/mcp", nil)
 	req.Header.Set("Origin", "http://localhost:9999")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec := httptest.NewRecorder()
@@ -553,7 +553,7 @@ func TestNewRouter_CORSRejectsUnlistedOrigin(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, customOrigins))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/mcp", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", nil)
 	req.Header.Set("Origin", "http://evil.com")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -587,7 +587,7 @@ func TestNewRouter_OAuthEndpointsReachable(t *testing.T) {
 	}
 
 	for _, ep := range endpoints {
-		req := httptest.NewRequestWithContext(t.Context(),ep.method, ep.path, nil)
+		req := httptest.NewRequestWithContext(t.Context(), ep.method, ep.path, nil)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -606,7 +606,7 @@ func TestNewRouter_ProtectedResourceMetadataContent(t *testing.T) {
 
 	router := NewRouter(testRouterParams(mcpHandler, localhostOrigins()))
 
-	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/.well-known/oauth-protected-resource", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -619,4 +619,3 @@ func TestNewRouter_ProtectedResourceMetadataContent(t *testing.T) {
 		t.Fatalf("expected protected resource metadata to contain issuer, got %s", body)
 	}
 }
-

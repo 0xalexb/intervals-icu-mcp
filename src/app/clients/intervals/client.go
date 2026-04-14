@@ -105,7 +105,6 @@ func (c *Client) doRequest(
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	//nolint:gosec // G107: baseURL is constant; paths are from internal tool code.
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)

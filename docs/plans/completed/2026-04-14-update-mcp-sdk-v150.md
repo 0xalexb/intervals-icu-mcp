@@ -65,9 +65,9 @@ Bump the `github.com/modelcontextprotocol/go-sdk` dependency from v1.2.0 to v1.5
 **Files:**
 - Modify: `CLAUDE.md`
 
-- [ ] Update the Architecture section: change "MCP server uses [go-sdk] v1.2.0" to "v1.5.0" (line 20)
-- [ ] Move `docs/2026-04-14-update-mcp-sdk-v150.md` to `docs/plans/completed/` (or create the directory if needed)
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update the Architecture section: change "MCP server uses [go-sdk] v1.2.0" to "v1.5.0" (line 20)
+- [x] Move `docs/2026-04-14-update-mcp-sdk-v150.md` to `docs/plans/completed/` (or create the directory if needed)
+- [x] Move this plan to `docs/plans/completed/`
 
 ### Task 6: Verify acceptance criteria
 

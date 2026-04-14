@@ -18,7 +18,7 @@
 - Dependency injection via [hjarta-di](https://github.com/0xalexb/hjarta-di), a wrapper around Uber's fx.
 - Application bootstrap uses `di.NewApp()` with options like `di.WithModules()` and `di.WithLogLevel()`.
 - The DI module is a package-level variable `app.Module` (not a function). It is transport-agnostic and does not include auth/HTTP modules. A separate `app.StreamableModules` (`fx.Options`) groups the HTTP/auth DI modules (`api.Module`, `auth.Module`, `ghclient.Module`, `rest.Module`) loaded only when transport is streamable.
-- MCP server uses [go-sdk](https://github.com/modelcontextprotocol/go-sdk) v1.2.0 with two transport modes:
+- MCP server uses [go-sdk](https://github.com/modelcontextprotocol/go-sdk) v1.5.0 with two transport modes:
   - **stdio** (default): `mcp.StdioTransport` + `server.Run` in a goroutine.
   - **streamable**: `mcp.StreamableHTTPHandler` wrapping `mcp.Server`; HTTP lifecycle managed by hjarta-di's `WithHTTPListener`.
 - For streamable transport, the Server exposes a raw `http.Handler` via `Handler()` method, provided to DI with named tag `"mcp-raw"`. The `api.Module` wraps this in a router (via `routegroup`) that mounts it at `/mcp`, and provides the resulting `http.Handler` with tag `"mcp"`. hjarta-di's `WithHTTPListener("mcp", listener.WithAddress(addr))` manages the HTTP server lifecycle.

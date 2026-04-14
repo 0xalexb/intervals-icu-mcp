@@ -71,5 +71,5 @@ Bump the `github.com/modelcontextprotocol/go-sdk` dependency from v1.2.0 to v1.5
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] Run full test suite: `go test ./src/...`
-- [ ] Run linter: `golangci-lint run ./src/...`
+- [x] Run full test suite: `go test ./src/...`
+- [x] Run linter: `golangci-lint run ./src/...`

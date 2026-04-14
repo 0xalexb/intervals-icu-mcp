@@ -32,7 +32,6 @@ push: setup-buildx
 		--build-arg DI_VERSION=$(DI_VERSION) \
 		--build-arg COMPILED_AT=$(COMPILED_AT) \
 		-t $(IMAGE):$(VERSION) \
-		-t $(IMAGE):latest \
 		.
 
 test:

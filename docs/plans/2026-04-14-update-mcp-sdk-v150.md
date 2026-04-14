@@ -47,10 +47,10 @@ Bump the `github.com/modelcontextprotocol/go-sdk` dependency from v1.2.0 to v1.5
 **Files:**
 - No modifications expected
 
-- [ ] Run `go test ./src/...` and confirm all tests pass
-- [ ] Pay special attention to `src/app/server_test.go` (MCP client/server round-trip via in-memory transport)
-- [ ] Pay special attention to `src/app/tools/*_test.go` (tool registration + CallTool round-trip)
-- [ ] If any test fails due to changed SDK behavior (e.g., tool input-validation errors now returned as tool results), update test assertions to match new behavior
+- [x] Run `go test ./src/...` and confirm all tests pass
+- [x] Pay special attention to `src/app/server_test.go` (MCP client/server round-trip via in-memory transport)
+- [x] Pay special attention to `src/app/tools/*_test.go` (tool registration + CallTool round-trip)
+- [x] If any test fails due to changed SDK behavior (e.g., tool input-validation errors now returned as tool results), update test assertions to match new behavior
 
 ### Task 4: Lint verification
 

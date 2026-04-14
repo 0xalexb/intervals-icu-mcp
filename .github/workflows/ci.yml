@@ -51,4 +51,5 @@ jobs:
           cache-to: type=gha,scope=docker,mode=max
           build-args: |
             VERSION=ci
+            DI_VERSION=0.5.0
             COMPILED_AT=ci

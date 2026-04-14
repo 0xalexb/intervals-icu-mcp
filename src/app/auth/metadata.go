@@ -5,8 +5,8 @@ import (
 )
 
 // AuthorizationServerMetadata represents the OAuth 2.0 Authorization Server Metadata
-// per RFC 8414. We define our own type because the go-sdk's AuthServerMeta is behind
-// the mcp_go_client_oauth build tag and unavailable at compile time.
+// per RFC 8414. Uses a project-local type rather than the SDK's oauthex.AuthServerMeta
+// to include only the fields this server supports.
 type AuthorizationServerMetadata struct {
 	Issuer                           string   `json:"issuer"`
 	AuthorizationEndpoint            string   `json:"authorization_endpoint"`

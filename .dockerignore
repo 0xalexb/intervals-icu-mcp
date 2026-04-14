@@ -3,6 +3,9 @@
 .idea
 .vscode
 .claude
+.cache
+.env
+.ralphex
 docs
 tests
 CLAUDE.md
@@ -11,5 +14,6 @@ LICENSE
 Makefile
 Dockerfile
 .dockerignore
+.gitignore
 coverage.*
 *.out

@@ -42,6 +42,8 @@ LABEL org.opencontainers.image.version="${VERSION}"
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/intervals-icu-mcp /intervals-icu-mcp
 
+USER 65534:65534
+
 EXPOSE 8080
 
 ENTRYPOINT ["/intervals-icu-mcp"]

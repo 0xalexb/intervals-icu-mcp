@@ -76,7 +76,7 @@ func TestHandleAuthServerMetadata(t *testing.T) {
 	h := newTestHandler("", "")
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/.well-known/oauth-authorization-server", http.NoBody)
 
 	h.HandleAuthServerMetadata(rec, req)
 
@@ -122,7 +122,7 @@ func TestHandleAuthorize_ValidRequest(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -166,7 +166,7 @@ func TestHandleAuthorize_UnregisteredClient(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -193,7 +193,7 @@ func TestHandleAuthorize_RedirectURIMismatch(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -217,7 +217,7 @@ func TestHandleAuthorize_MissingResponseType(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -241,7 +241,7 @@ func TestHandleAuthorize_MissingClientID(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -265,7 +265,7 @@ func TestHandleAuthorize_MissingCodeChallenge(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -290,7 +290,7 @@ func TestHandleAuthorize_WrongCodeChallengeMethod(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -340,7 +340,7 @@ func TestHandleCallback_SuccessWithAllowList(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -412,7 +412,7 @@ func TestHandleCallback_UserNotAllowed(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -467,7 +467,7 @@ func TestHandleCallback_EmptyAllowList(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -502,7 +502,7 @@ func TestHandleCallback_InvalidState(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -523,7 +523,7 @@ func TestHandleCallback_MissingCode(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -545,7 +545,7 @@ func TestHandleCallback_GitHubError(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -581,7 +581,7 @@ func TestHandleCallback_GitHubErrorWithValidState(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -616,7 +616,7 @@ func TestHandleCallback_GitHubErrorUnknownCode(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -649,7 +649,7 @@ func TestHandleCallback_GitHubErrorKnownCodeBadDescription(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -696,7 +696,7 @@ func TestHandleCallback_GitHubErrorWithValidStateUnknownCode(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -822,7 +822,7 @@ func TestHandleToken_AuthorizationCodeGrant(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -897,7 +897,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifier(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -935,7 +935,7 @@ func TestHandleToken_AuthorizationCodeGrant_ExpiredCode(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -978,7 +978,7 @@ func TestHandleToken_AuthorizationCodeGrant_CodeReuse(t *testing.T) {
 	}
 
 	rec1 := httptest.NewRecorder()
-	req1 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req1 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec1, req1)
@@ -988,7 +988,7 @@ func TestHandleToken_AuthorizationCodeGrant_CodeReuse(t *testing.T) {
 	}
 
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req2 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec2, req2)
@@ -1027,7 +1027,7 @@ func TestHandleToken_AuthorizationCodeGrant_ClientIDMismatch(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1071,7 +1071,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifierDoesNotConsumeCode(t *t
 	}
 
 	rec1 := httptest.NewRecorder()
-	req1 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(wrongForm.Encode()))
+	req1 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(wrongForm.Encode()))
 	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec1, req1)
@@ -1092,7 +1092,7 @@ func TestHandleToken_AuthorizationCodeGrant_WrongVerifierDoesNotConsumeCode(t *t
 	}
 
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(correctForm.Encode()))
+	req2 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(correctForm.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec2, req2)
@@ -1125,7 +1125,7 @@ func TestHandleToken_RefreshTokenGrant(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1175,7 +1175,7 @@ func TestHandleToken_RefreshTokenGrant_TokenRotation(t *testing.T) {
 	}
 
 	rec1 := httptest.NewRecorder()
-	req1 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req1 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec1, req1)
@@ -1191,7 +1191,7 @@ func TestHandleToken_RefreshTokenGrant_TokenRotation(t *testing.T) {
 	}
 
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form2.Encode()))
+	req2 := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec2, req2)
@@ -1224,7 +1224,7 @@ func TestHandleToken_RefreshTokenGrant_ExpiredToken(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1246,7 +1246,7 @@ func TestHandleToken_UnsupportedGrantType(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1266,7 +1266,7 @@ func TestHandleRegister_Success(t *testing.T) {
 	body := `{"redirect_uris": ["https://client.example.com/callback"], "client_name": "Test App"}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1314,7 +1314,7 @@ func TestHandleRegister_CustomGrantTypes(t *testing.T) {
 	body := `{"redirect_uris": ["https://client.example.com/callback"], "grant_types": ["authorization_code", "refresh_token"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1341,7 +1341,7 @@ func TestHandleRegister_MissingRedirectURIs(t *testing.T) {
 	body := `{"client_name": "Test"}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1361,7 +1361,7 @@ func TestHandleRegister_InvalidRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["not a valid uri"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1381,7 +1381,7 @@ func TestHandleRegister_RelativeRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["/callback"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1401,7 +1401,7 @@ func TestHandleRegister_JavascriptRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["javascript:alert(1)"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1421,7 +1421,7 @@ func TestHandleRegister_FragmentInRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["https://example.com/callback#frag"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1439,7 +1439,7 @@ func TestHandleRegister_InvalidJSON(t *testing.T) {
 	h := newTestHandler("", "")
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader("not json"))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1459,7 +1459,7 @@ func TestHandleRegister_HTTPNonLoopbackRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["http://external.example.com/callback"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1479,7 +1479,7 @@ func TestHandleRegister_HTTPLocalhostRedirectURI(t *testing.T) {
 	body := `{"redirect_uris": ["http://localhost:8080/callback"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)
@@ -1512,7 +1512,7 @@ func TestHandleToken_RefreshTokenGrant_ClientWithoutRefreshGrant(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1555,7 +1555,7 @@ func TestHandleToken_AuthorizationCodeGrant_NoRefreshTokenWhenNotRegistered(t *t
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -1599,7 +1599,7 @@ func TestFullOAuthFlow(t *testing.T) {
 	regBody := `{"redirect_uris": ["https://client.example.com/callback"], "client_name": "Flow Test", "grant_types": ["authorization_code", "refresh_token"]}`
 
 	regRec := httptest.NewRecorder()
-	regReq := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(regBody))
+	regReq := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(regBody))
 	regReq.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(regRec, regReq)
@@ -1630,7 +1630,7 @@ func TestFullOAuthFlow(t *testing.T) {
 	}
 
 	authRec := httptest.NewRecorder()
-	authReq := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+authParams.Encode(), http.NoBody)
+	authReq := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+authParams.Encode(), http.NoBody)
 
 	h.HandleAuthorize(authRec, authReq)
 
@@ -1651,7 +1651,7 @@ func TestFullOAuthFlow(t *testing.T) {
 	}
 
 	cbRec := httptest.NewRecorder()
-	cbReq := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+cbParams.Encode(), http.NoBody)
+	cbReq := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+cbParams.Encode(), http.NoBody)
 
 	h.HandleCallback(cbRec, cbReq)
 
@@ -1683,7 +1683,7 @@ func TestFullOAuthFlow(t *testing.T) {
 	}
 
 	tokenRec := httptest.NewRecorder()
-	tokenReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(tokenForm.Encode()))
+	tokenReq := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(tokenForm.Encode()))
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(tokenRec, tokenReq)
@@ -1729,7 +1729,7 @@ func TestFullOAuthFlow(t *testing.T) {
 	}
 
 	refreshRec := httptest.NewRecorder()
-	refreshReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(refreshForm.Encode()))
+	refreshReq := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(refreshForm.Encode()))
 	refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(refreshRec, refreshReq)
@@ -1992,7 +1992,7 @@ func TestHandleToken_MissingCode(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2015,7 +2015,7 @@ func TestHandleToken_MissingCodeVerifier(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2037,7 +2037,7 @@ func TestHandleToken_MissingRefreshToken(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2065,7 +2065,7 @@ func TestHandleAuthorize_ClientWithoutAuthCodeGrant(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -2110,7 +2110,7 @@ func TestHandleToken_AuthorizationCodeGrant_ClientWithoutAuthCodeGrant(t *testin
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2139,7 +2139,7 @@ func TestHandleAuthorize_InvalidScope(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/authorize?"+params.Encode(), http.NoBody)
 
 	h.HandleAuthorize(rec, req)
 
@@ -2160,7 +2160,7 @@ func TestHandleCallback_MissingState(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodGet, "/oauth/callback?"+params.Encode(), http.NoBody)
 
 	h.HandleCallback(rec, req)
 
@@ -2184,7 +2184,7 @@ func TestHandleToken_AuthorizationCodeGrant_MissingClientID(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2209,7 +2209,7 @@ func TestHandleToken_AuthorizationCodeGrant_MissingRedirectURI(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2252,7 +2252,7 @@ func TestHandleToken_AuthorizationCodeGrant_RedirectURIMismatch(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2275,7 +2275,7 @@ func TestHandleToken_RefreshTokenGrant_MissingClientID(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2311,7 +2311,7 @@ func TestHandleToken_RefreshTokenGrant_ClientIDMismatch(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	h.HandleToken(rec, req)
@@ -2331,7 +2331,7 @@ func TestHandleRegister_UnsupportedGrantType(t *testing.T) {
 	body := `{"redirect_uris": ["https://example.com/cb"], "grant_types": ["client_credentials"]}`
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(),http.MethodPost, "/oauth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	h.HandleRegister(rec, req)

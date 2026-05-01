@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "0xalexbs-claude-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "0xalexb/cc-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "general-rules@0xalexbs-claude-plugins": true,
+    "golang-rules@0xalexbs-claude-plugins": true
+  }
+}

@@ -33,3 +33,6 @@ go.work.sum
 
 # ralphex progress logs
 progress*.txt
+
+# plugin rules
+.claude/rules/*-rules
